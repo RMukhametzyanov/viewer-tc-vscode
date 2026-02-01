@@ -229,20 +229,50 @@ export class TestCaseRenderer {
             margin: 0;
         }
         
-        h1 {
-            font-size: 24px;
-            margin-bottom: 24px;
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            padding: 8px 16px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            color: var(--vscode-descriptionForeground);
+            font-size: 14px;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+        
+        .tab:hover {
+            color: var(--vscode-foreground);
+        }
+        
+        .tab.active {
             color: var(--vscode-textLink-foreground);
-            border-bottom: 2px solid var(--vscode-panel-border);
-            padding-bottom: 12px;
+            border-bottom-color: var(--vscode-textLink-foreground);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
         }
         
         .section {
             background-color: var(--vscode-editor-background);
             border: 1px solid var(--vscode-panel-border);
             border-radius: 4px;
-            padding: 16px;
+            padding: 16px 16px 0 16px;
             margin-bottom: 20px;
+        }
+        
+        .section:has(.section-content:not(.collapsed)) {
+            padding-bottom: 16px;
         }
         
         .section-title {
@@ -250,6 +280,40 @@ export class TestCaseRenderer {
             font-weight: 600;
             margin-bottom: 16px;
             color: var(--vscode-textLink-foreground);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .section-title-collapsible {
+            cursor: pointer;
+        }
+        
+        .section-toggle {
+            font-size: 14px;
+            color: var(--vscode-descriptionForeground);
+            margin-left: 8px;
+            transition: transform 0.2s ease;
+        }
+        
+        .section-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+        
+        .section-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease, padding-top 0.3s ease, padding-bottom 0.3s ease;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+        
+        .section-content.collapsed {
+            max-height: 0 !important;
+            opacity: 0;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
         }
         
         .info-grid {
@@ -531,10 +595,18 @@ export class TestCaseRenderer {
 </head>
 <body>
     <div class="container">
-        <h1>Test Case Viewer</h1>
+        <div class="tabs">
+            <button class="tab active" data-tab="viewer">Viewer</button>
+            <button class="tab" data-tab="llm">LLM</button>
+        </div>
         
+        <div class="tab-content active" data-tab="viewer">
         <div class="section">
-            <div class="section-title">Информация о тест-кейсе</div>
+            <div class="section-title section-title-collapsible" data-section="info">
+                <span>Информация о тест-кейсе</span>
+                <span class="section-toggle">▼</span>
+            </div>
+            <div class="section-content" data-section="info">
             <div class="info-grid">
                 <div class="info-item">
                     <div class="info-label">ID:</div>
@@ -610,7 +682,7 @@ export class TestCaseRenderer {
                     `}
                 </div>
                 <div class="info-item">
-                    <div class="info-label">Reviewer:</div>
+                    <div class="info-label">Ревьювер:</div>
                     ${testers && testers.length > 0 ? `
                     <select 
                         class="info-value-select" 
@@ -625,10 +697,15 @@ export class TestCaseRenderer {
                     `}
                 </div>
             </div>
+            </div>
         </div>
         
         <div class="section">
-            <div class="section-title">Epic / Feature / Story</div>
+            <div class="section-title section-title-collapsible" data-section="epic">
+                <span>Epic / Feature / Story</span>
+                <span class="section-toggle">▼</span>
+            </div>
+            <div class="section-content" data-section="epic" style="padding-top: 0; padding-bottom: 0;">
             <div class="info-grid">
                 <div class="info-item">
                     <div class="info-label">epic:</div>
@@ -661,32 +738,53 @@ export class TestCaseRenderer {
                     />
                 </div>
             </div>
+            </div>
         </div>
         
         <div class="section">
-            <div class="section-title">Описание</div>
+            <div class="section-title section-title-collapsible" data-section="description">
+                <span>Описание</span>
+                <span class="section-toggle">▼</span>
+            </div>
+            <div class="section-content" data-section="description" style="padding-top: 0; padding-bottom: 0;">
             <textarea 
                 class="description-editable" 
                 id="test-case-description" 
                 data-field="description"
                 placeholder="Описание тест-кейса"
             >${this.escapeHtml(testCase.description || '')}</textarea>
+            </div>
         </div>
         
         <div class="section">
-            <div class="section-title">Предусловие</div>
+            <div class="section-title section-title-collapsible" data-section="preconditions">
+                <span>Предусловие</span>
+                <span class="section-toggle">▼</span>
+            </div>
+            <div class="section-content" data-section="preconditions" style="padding-top: 0; padding-bottom: 0;">
             <textarea 
                 class="description-editable" 
                 id="test-case-preconditions" 
                 data-field="preconditions"
                 placeholder="Предусловия для выполнения тест-кейса"
             >${this.escapeHtml(testCase.preconditions || '')}</textarea>
+            </div>
         </div>
         
         <div class="section">
             <div class="section-title">Шаги тестирования</div>
             <div class="steps-container">
                 ${stepsHtml || '<div class="empty">Нет шагов тестирования</div>'}
+            </div>
+        </div>
+        </div>
+        
+        <div class="tab-content" data-tab="llm">
+            <div class="section">
+                <div class="section-title">LLM</div>
+                <div style="padding: 20px; color: var(--vscode-descriptionForeground);">
+                    Функционал LLM будет добавлен позже
+                </div>
             </div>
         </div>
     </div>
@@ -906,6 +1004,87 @@ export class TestCaseRenderer {
                             action: action,
                             stepId: stepId
                         });
+                    }
+                });
+            });
+            
+            // Handle section collapsing
+            const collapsibleSections = document.querySelectorAll('.section-title-collapsible');
+            collapsibleSections.forEach(title => {
+                title.addEventListener('click', function(e) {
+                    const sectionId = title.getAttribute('data-section');
+                    const content = document.querySelector('.section-content[data-section="' + sectionId + '"]');
+                    const toggle = title.querySelector('.section-toggle');
+                    
+                    if (content && toggle) {
+                        const isCollapsed = content.classList.contains('collapsed');
+                        
+                        if (isCollapsed) {
+                            // Expand
+                            content.classList.remove('collapsed');
+                            toggle.classList.remove('collapsed');
+                            // Temporarily remove max-height to get actual height
+                            content.style.maxHeight = 'none';
+                            const height = content.scrollHeight;
+                            content.style.maxHeight = '0px';
+                            // Force reflow
+                            content.offsetHeight;
+                            // Set to actual height for animation
+                            content.style.maxHeight = height + 'px';
+                            // Update section padding
+                            const section = content.closest('.section');
+                            if (section) {
+                                section.style.paddingBottom = '16px';
+                            }
+                            // After animation, remove max-height constraint
+                            setTimeout(() => {
+                                if (!content.classList.contains('collapsed')) {
+                                    content.style.maxHeight = 'none';
+                                }
+                            }, 300);
+                        } else {
+                            // Collapse
+                            content.style.maxHeight = content.scrollHeight + 'px';
+                            // Force reflow
+                            content.offsetHeight;
+                            content.classList.add('collapsed');
+                            toggle.classList.add('collapsed');
+                            content.style.maxHeight = '0px';
+                            // Update section padding
+                            const section = content.closest('.section');
+                            if (section) {
+                                section.style.paddingBottom = '0px';
+                            }
+                        }
+                    }
+                });
+            });
+            
+            // Initialize section heights
+            const sectionContents = document.querySelectorAll('.section-content');
+            sectionContents.forEach(content => {
+                if (!content.classList.contains('collapsed')) {
+                    content.style.maxHeight = content.scrollHeight + 'px';
+                }
+            });
+            
+            // Handle tab switching
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const targetTab = this.getAttribute('data-tab');
+                    
+                    // Remove active class from all tabs and contents
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    
+                    // Add active class to clicked tab and corresponding content
+                    this.classList.add('active');
+                    const targetContent = document.querySelector('.tab-content[data-tab="' + targetTab + '"]');
+                    if (targetContent) {
+                        targetContent.classList.add('active');
                     }
                 });
             });
