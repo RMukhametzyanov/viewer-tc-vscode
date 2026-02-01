@@ -5,6 +5,7 @@ import * as path from 'path';
 export class SettingsProvider {
     private static _configPath: string | undefined;
     private static _testers: string[] = [];
+    private static _llmHost: string = '';
 
     public static async openSettings(context: vscode.ExtensionContext) {
         const panel = vscode.window.createWebviewPanel(
@@ -22,7 +23,11 @@ export class SettingsProvider {
         this._configPath = configPath;
         await this._loadConfig(configPath);
 
-        panel.webview.html = this._getHtmlForWebview(panel.webview, configPath);
+        // Load saved LLM host
+        const llmHost = context.workspaceState.get<string>('llmHost') || '';
+        this._llmHost = llmHost;
+
+        panel.webview.html = this._getHtmlForWebview(panel.webview, configPath, llmHost);
 
         // Handle messages from webview
         panel.webview.onDidReceiveMessage(async (message) => {
@@ -61,6 +66,16 @@ export class SettingsProvider {
                     });
                     vscode.commands.executeCommand('testCaseViewer.refresh');
                     return;
+                case 'updateLlmHost':
+                    const host = message.host || '';
+                    context.workspaceState.update('llmHost', host);
+                    this._llmHost = host;
+                    panel.webview.postMessage({
+                        command: 'llmHostUpdated',
+                        host: host
+                    });
+                    vscode.commands.executeCommand('testCaseViewer.refresh');
+                    return;
             }
         });
     }
@@ -85,15 +100,22 @@ export class SettingsProvider {
         return [...this._testers];
     }
 
+    public static getLlmHost(): string {
+        return this._llmHost;
+    }
+
     public static async initialize(context: vscode.ExtensionContext): Promise<void> {
         const configPath = context.workspaceState.get<string>('configPath');
         if (configPath) {
             this._configPath = configPath;
             await this._loadConfig(configPath);
         }
+        
+        const llmHost = context.workspaceState.get<string>('llmHost') || '';
+        this._llmHost = llmHost;
     }
 
-    private static _getHtmlForWebview(webview: vscode.Webview, configPath: string): string {
+    private static _getHtmlForWebview(webview: vscode.Webview, configPath: string, llmHost: string): string {
         return `<!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -194,11 +216,24 @@ export class SettingsProvider {
         ` : ''}
     </div>
     
+    <div class="setting-item">
+        <div class="setting-label">LLM Хост</div>
+        <div class="setting-description">
+            Укажите адрес LLM сервера (например: http://localhost:8000)
+        </div>
+        <div class="setting-controls">
+            <input type="text" class="config-path" id="llm-host" value="${this._escapeHtml(llmHost)}" placeholder="http://localhost:8000" />
+            <button id="save-llm-host-btn">Сохранить</button>
+        </div>
+    </div>
+    
     <script>
         const vscode = acquireVsCodeApi();
         
         const selectBtn = document.getElementById('select-config-btn');
         const removeBtn = document.getElementById('remove-config-btn');
+        const saveLlmHostBtn = document.getElementById('save-llm-host-btn');
+        const llmHostInput = document.getElementById('llm-host');
         
         if (selectBtn) {
             selectBtn.addEventListener('click', () => {
@@ -209,6 +244,20 @@ export class SettingsProvider {
         if (removeBtn) {
             removeBtn.addEventListener('click', () => {
                 vscode.postMessage({ command: 'removeConfigFile' });
+            });
+        }
+        
+        if (saveLlmHostBtn && llmHostInput) {
+            saveLlmHostBtn.addEventListener('click', () => {
+                const host = llmHostInput.value.trim();
+                vscode.postMessage({ command: 'updateLlmHost', host: host });
+            });
+            
+            llmHostInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    const host = llmHostInput.value.trim();
+                    vscode.postMessage({ command: 'updateLlmHost', host: host });
+                }
             });
         }
         
@@ -224,6 +273,12 @@ export class SettingsProvider {
                     setTimeout(() => location.reload(), 100);
                 } else {
                     location.reload();
+                }
+            }
+            if (message.command === 'llmHostUpdated') {
+                const hostInput = document.getElementById('llm-host');
+                if (hostInput) {
+                    hostInput.value = message.host || '';
                 }
             }
         });

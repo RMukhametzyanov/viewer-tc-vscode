@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import * as http from 'http';
+import * as https from 'https';
+import { URL } from 'url';
 import { TestCaseRenderer } from './testCaseRenderer';
 import { SettingsProvider } from './settingsProvider';
 
@@ -91,6 +94,12 @@ export class TestCaseSidebarProvider implements vscode.WebviewViewProvider {
                     return;
                 case 'stepAction':
                     await this._handleStepAction(message.action, message.stepId);
+                    return;
+                case 'checkLlmConnection':
+                    await this._checkLlmConnection(webviewView.webview);
+                    return;
+                case 'getLlmModels':
+                    await this._getLlmModels(webviewView.webview);
                     return;
             }
         });
@@ -382,5 +391,242 @@ export class TestCaseSidebarProvider implements vscode.WebviewViewProvider {
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
         return this._getEmptyHtml();
+    }
+
+    private async _checkLlmConnection(webview: vscode.Webview): Promise<void> {
+        const llmHost = SettingsProvider.getLlmHost();
+        
+        if (!llmHost || llmHost.trim() === '') {
+            webview.postMessage({
+                command: 'llmConnectionStatus',
+                connected: false,
+                statusText: 'LLM хост не настроен. Укажите хост в настройках.'
+            });
+            return;
+        }
+
+        try {
+            // Parse URL
+            let url: URL;
+            try {
+                url = new URL(llmHost);
+            } catch {
+                // If no protocol, try adding http://
+                url = new URL(llmHost.startsWith('http://') || llmHost.startsWith('https://') ? llmHost : `http://${llmHost}`);
+            }
+
+            // Determine if HTTPS or HTTP
+            const isHttps = url.protocol === 'https:';
+            const client = isHttps ? https : http;
+
+            // Create request options
+            const options = {
+                hostname: url.hostname,
+                port: url.port || (isHttps ? 443 : 80),
+                path: url.pathname || '/',
+                method: 'GET',
+                timeout: 5000, // 5 second timeout
+                headers: {
+                    'User-Agent': 'VSCode-TestCaseViewer'
+                }
+            };
+
+            // Make request
+            const isConnected = await new Promise<boolean>((resolve) => {
+                const req = client.request(options, (res) => {
+                    // Any 2xx or 3xx status means server is reachable
+                    resolve(res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 400);
+                    res.on('data', () => {}); // Consume response
+                    res.on('end', () => {});
+                });
+
+                req.on('error', () => {
+                    resolve(false);
+                });
+
+                req.on('timeout', () => {
+                    req.destroy();
+                    resolve(false);
+                });
+
+                req.end();
+            });
+
+            // Send status back to webview
+            webview.postMessage({
+                command: 'llmConnectionStatus',
+                connected: isConnected,
+                statusText: isConnected 
+                    ? `Подключено к ${llmHost}` 
+                    : `Не удалось подключиться к ${llmHost}`
+            });
+        } catch (error) {
+            webview.postMessage({
+                command: 'llmConnectionStatus',
+                connected: false,
+                statusText: `Ошибка при проверке подключения: ${error}`
+            });
+        }
+    }
+
+    private _parseModelsPayload(payload: any): string[] {
+        if (typeof payload === 'object' && payload !== null && !Array.isArray(payload)) {
+            // If payload is a dict/object
+            if (Array.isArray(payload.data)) {
+                // Check data array
+                return payload.data
+                    .filter((item: any) => typeof item === 'object' && item !== null)
+                    .map((item: any) => item.id || item.name)
+                    .filter((value: any) => value !== undefined && value !== null)
+                    .map((value: any) => String(value));
+            }
+            if (Array.isArray(payload.models)) {
+                // Check models array (can be strings or objects)
+                return payload.models
+                    .filter((item: any) => item !== null && item !== undefined)
+                    .map((item: any) => {
+                        if (typeof item === 'string') {
+                            return item;
+                        }
+                        if (typeof item === 'object') {
+                            return item.id || item.name;
+                        }
+                        return String(item);
+                    })
+                    .filter((value: any) => value !== undefined && value !== null)
+                    .map((value: any) => String(value));
+            }
+        }
+        if (Array.isArray(payload)) {
+            // If payload is an array
+            return payload
+                .filter((item: any) => typeof item === 'object' && item !== null)
+                .map((item: any) => item.id || item.name)
+                .filter((value: any) => value !== undefined && value !== null)
+                .map((value: any) => String(value));
+        }
+        return [];
+    }
+
+    private async _getLlmModels(webview: vscode.Webview): Promise<void> {
+        const llmHost = SettingsProvider.getLlmHost();
+        
+        if (!llmHost || llmHost.trim() === '') {
+            webview.postMessage({
+                command: 'llmModelsList',
+                models: [],
+                error: 'LLM хост не настроен. Укажите хост в настройках.'
+            });
+            return;
+        }
+
+        // Model endpoints to try (same as in Python code)
+        const modelEndpoints = [
+            '/models',
+            '/v1/models',
+            '/api/models',
+            '/api/tags'
+        ];
+
+        const base = llmHost.trim().replace(/\/+$/, ''); // Remove trailing slashes
+        let lastError: Error | null = null;
+        let parsedModels: string[] = [];
+
+        for (const endpoint of modelEndpoints) {
+            const fullUrl = base + endpoint;
+            
+            try {
+                // Parse URL
+                let url: URL;
+                try {
+                    url = new URL(fullUrl);
+                } catch {
+                    // If no protocol, try adding http://
+                    url = new URL(fullUrl.startsWith('http://') || fullUrl.startsWith('https://') ? fullUrl : `http://${fullUrl}`);
+                }
+
+                const isHttps = url.protocol === 'https:';
+                const client = isHttps ? https : http;
+
+                const options = {
+                    hostname: url.hostname,
+                    port: url.port || (isHttps ? 443 : 80),
+                    path: url.pathname,
+                    method: 'GET',
+                    timeout: 10000, // 10 second timeout
+                    headers: {
+                        'User-Agent': 'VSCode-TestCaseViewer',
+                        'Accept': 'application/json'
+                    }
+                };
+
+                const response = await new Promise<{ statusCode?: number; data: string }>((resolve, reject) => {
+                    const req = client.request(options, (res) => {
+                        let data = '';
+                        
+                        res.on('data', (chunk) => {
+                            data += chunk;
+                        });
+                        
+                        res.on('end', () => {
+                            resolve({ statusCode: res.statusCode, data: data });
+                        });
+                    });
+
+                    req.on('error', (error) => {
+                        reject(error);
+                    });
+
+                    req.on('timeout', () => {
+                        req.destroy();
+                        reject(new Error('Request timeout'));
+                    });
+
+                    req.end();
+                });
+
+                if (response.statusCode && response.statusCode === 200) {
+                    try {
+                        const jsonData = JSON.parse(response.data);
+                        const models = this._parseModelsPayload(jsonData);
+                        
+                        if (models.length > 0) {
+                            parsedModels = models;
+                            break; // Success, exit loop
+                        }
+                        
+                        lastError = new Error(`Эндпойнт ${fullUrl} вернул неожиданный формат: ${JSON.stringify(jsonData)}`);
+                    } catch (parseError) {
+                        lastError = new Error(`Не удалось распарсить JSON от ${fullUrl}: ${parseError}`);
+                        continue;
+                    }
+                } else {
+                    const statusCode = response.statusCode || 0;
+                    lastError = new Error(`Хост ${fullUrl} вернул статус ${statusCode}: ${response.data}`);
+                    continue;
+                }
+            } catch (error) {
+                if (error instanceof Error) {
+                    lastError = new Error(`Не удалось выполнить запрос к ${fullUrl}: ${error.message}`);
+                } else {
+                    lastError = new Error(`Не удалось выполнить запрос к ${fullUrl}: ${String(error)}`);
+                }
+                continue;
+            }
+        }
+
+        if (parsedModels.length > 0) {
+            webview.postMessage({
+                command: 'llmModelsList',
+                models: parsedModels,
+                error: undefined
+            });
+        } else {
+            webview.postMessage({
+                command: 'llmModelsList',
+                models: [],
+                error: lastError ? lastError.message : 'Не удалось получить список моделей: попытки всех эндпойнтов завершились без результата.'
+            });
+        }
     }
 }

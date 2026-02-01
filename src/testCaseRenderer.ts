@@ -591,6 +591,56 @@ export class TestCaseRenderer {
             color: var(--vscode-descriptionForeground);
             font-style: italic;
         }
+        
+        .llm-status-indicator {
+            transition: background-color 0.3s ease;
+        }
+        
+        .llm-status-indicator.connected {
+            background-color: #4ec9b0 !important;
+            box-shadow: 0 0 8px rgba(78, 201, 176, 0.5);
+        }
+        
+        .llm-status-indicator.disconnected {
+            background-color: #f48771 !important;
+            box-shadow: 0 0 8px rgba(244, 135, 113, 0.5);
+        }
+        
+        .llm-refresh-btn:hover {
+            background-color: var(--vscode-button-hoverBackground) !important;
+            border-radius: 4px;
+        }
+        
+        .llm-refresh-btn:active {
+            transform: rotate(180deg);
+            transition: transform 0.3s ease;
+        }
+        
+        .llm-models-btn:hover {
+            background-color: var(--vscode-button-hoverBackground) !important;
+        }
+        
+        .llm-models-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .llm-models-item {
+            padding: 6px 8px;
+            margin: 4px 0;
+            background-color: var(--vscode-editor-inactiveSelectionBackground);
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        .llm-models-loading {
+            color: var(--vscode-descriptionForeground);
+            font-style: italic;
+        }
+        
+        .llm-models-error {
+            color: var(--vscode-errorForeground);
+        }
     </style>
 </head>
 <body>
@@ -781,9 +831,25 @@ export class TestCaseRenderer {
         
         <div class="tab-content" data-tab="llm">
             <div class="section">
-                <div class="section-title">LLM</div>
+                <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
+                    <span>LLM</span>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div id="llm-status" class="llm-status-indicator" style="width: 12px; height: 12px; border-radius: 50%; background-color: var(--vscode-descriptionForeground);" title="Статус подключения"></div>
+                        <button id="llm-refresh-btn" class="llm-refresh-btn" title="Обновить статус подключения" style="background: transparent; border: none; cursor: pointer; color: var(--vscode-foreground); padding: 4px 8px; display: flex; align-items: center; justify-content: center;">
+                            <span style="font-size: 16px;">🔄</span>
+                        </button>
+                    </div>
+                </div>
                 <div style="padding: 20px; color: var(--vscode-descriptionForeground);">
-                    Функционал LLM будет добавлен позже
+                    <div id="llm-status-text" style="margin-bottom: 12px;">Проверка подключения...</div>
+                    <div style="font-size: 12px; margin-bottom: 16px;">Используйте иконку обновления для проверки подключения к LLM серверу</div>
+                    <button id="llm-models-btn" class="llm-models-btn" style="background-color: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">
+                        Список моделей
+                    </button>
+                    <div id="llm-models-list" style="margin-top: 16px; display: none;">
+                        <div style="font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--vscode-foreground);">Доступные модели:</div>
+                        <div id="llm-models-content" style="color: var(--vscode-foreground);"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1088,6 +1154,101 @@ export class TestCaseRenderer {
                     }
                 });
             });
+            
+            // Handle LLM refresh button
+            const llmRefreshBtn = document.getElementById('llm-refresh-btn');
+            const llmStatusIndicator = document.getElementById('llm-status');
+            const llmStatusText = document.getElementById('llm-status-text');
+            
+            if (llmRefreshBtn) {
+                llmRefreshBtn.addEventListener('click', function() {
+                    vscode.postMessage({ command: 'checkLlmConnection' });
+                });
+            }
+            
+            // Handle LLM models button
+            const llmModelsBtn = document.getElementById('llm-models-btn');
+            const llmModelsList = document.getElementById('llm-models-list');
+            const llmModelsContent = document.getElementById('llm-models-content');
+            
+            if (llmModelsBtn) {
+                llmModelsBtn.addEventListener('click', function() {
+                    if (llmModelsBtn.disabled) return;
+                    
+                    llmModelsBtn.disabled = true;
+                    if (llmModelsContent) {
+                        llmModelsContent.innerHTML = '<div class="llm-models-loading">Загрузка моделей...</div>';
+                        llmModelsList.style.display = 'block';
+                    }
+                    
+                    vscode.postMessage({ command: 'getLlmModels' });
+                });
+            }
+            
+            // Handle LLM connection status updates
+            window.addEventListener('message', event => {
+                const message = event.data;
+                if (message.command === 'llmConnectionStatus') {
+                    const isConnected = message.connected;
+                    const statusText = message.statusText || '';
+                    
+                    if (llmStatusIndicator) {
+                        llmStatusIndicator.classList.remove('connected', 'disconnected');
+                        if (isConnected) {
+                            llmStatusIndicator.classList.add('connected');
+                        } else {
+                            llmStatusIndicator.classList.add('disconnected');
+                        }
+                    }
+                    
+                    if (llmStatusText) {
+                        llmStatusText.textContent = statusText;
+                    }
+                }
+                
+                if (message.command === 'llmModelsList') {
+                    if (llmModelsBtn) {
+                        llmModelsBtn.disabled = false;
+                    }
+                    
+                    if (llmModelsContent) {
+                        if (message.error) {
+                            const errorText = String(message.error).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                            llmModelsContent.innerHTML = '<div class="llm-models-error">Ошибка: ' + errorText + '</div>';
+                        } else if (message.models && message.models.length > 0) {
+                            const modelsHtml = message.models.map(function(model) {
+                                const modelText = String(model).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                                return '<div class="llm-models-item">' + modelText + '</div>';
+                            }).join('');
+                            llmModelsContent.innerHTML = modelsHtml;
+                        } else {
+                            llmModelsContent.innerHTML = '<div class="llm-models-loading">Модели не найдены</div>';
+                        }
+                    }
+                    
+                    if (llmModelsList) {
+                        llmModelsList.style.display = 'block';
+                    }
+                }
+            });
+            
+            // Check connection status when LLM tab is opened
+            const llmTab = document.querySelector('.tab[data-tab="llm"]');
+            if (llmTab) {
+                llmTab.addEventListener('click', function() {
+                    setTimeout(() => {
+                        vscode.postMessage({ command: 'checkLlmConnection' });
+                    }, 100);
+                });
+            }
+            
+            // Initial status check if LLM tab is already active (shouldn't happen, but just in case)
+            const activeLlmTab = document.querySelector('.tab[data-tab="llm"].active');
+            if (activeLlmTab) {
+                setTimeout(() => {
+                    vscode.postMessage({ command: 'checkLlmConnection' });
+                }, 200);
+            }
         })();
     </script>
 </body>
