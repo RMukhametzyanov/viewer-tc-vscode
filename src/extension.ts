@@ -124,7 +124,7 @@ export async function activate(context: vscode.ExtensionContext) {
     await SettingsProvider.initialize(context);
     
     // Register sidebar provider
-    const sidebarProvider = new TestCaseSidebarProvider(context.extensionUri);
+    const sidebarProvider = new TestCaseSidebarProvider(context.extensionUri, context);
     
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(

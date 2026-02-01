@@ -787,12 +787,354 @@ export class TestCaseRenderer {
         .llm-models-error {
             color: var(--vscode-errorForeground);
         }
+        
+        /* Chat styles - Cursor-like design */
+        .tab-content[data-tab="chat"].active {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+            background-color: var(--vscode-editor-background);
+        }
+        
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            position: relative;
+        }
+        
+        .chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            background-color: var(--vscode-editor-background);
+            flex-shrink: 0;
+        }
+        
+        .chat-header-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chat-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .chat-header-button {
+            background: transparent;
+            border: none;
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            opacity: 0.7;
+            transition: opacity 0.2s ease, background-color 0.2s ease;
+        }
+        
+        .chat-header-button:hover {
+            opacity: 1;
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            scroll-behavior: smooth;
+        }
+        
+        .chat-message {
+            display: flex;
+            flex-direction: column;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            transition: background-color 0.15s ease;
+        }
+        
+        .chat-message:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        .chat-message.user {
+            background-color: var(--vscode-editor-background);
+        }
+        
+        .chat-message.assistant {
+            background-color: var(--vscode-editor-background);
+        }
+        
+        .chat-message-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .chat-message-role {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+        }
+        
+        .chat-message-role-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        
+        .chat-message.user .chat-message-role-icon {
+            background-color: var(--vscode-textLink-foreground);
+            color: var(--vscode-editor-background);
+        }
+        
+        .chat-message.assistant .chat-message-role-icon {
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+        }
+        
+        .chat-message-content {
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--vscode-foreground);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            padding-left: 28px;
+        }
+        
+        .chat-input-container {
+            position: sticky;
+            bottom: 0;
+            background-color: var(--vscode-editor-background);
+            border-top: 1px solid var(--vscode-panel-border);
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-shrink: 0;
+            z-index: 10;
+        }
+        
+        .chat-input-top-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+        
+        .chat-model-select {
+            flex-shrink: 0;
+            font-size: 12px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: var(--vscode-font-family);
+            cursor: pointer;
+            height: 24px;
+        }
+        
+        .chat-model-select:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+        
+        .chat-input-row {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            border-radius: 6px;
+            padding: 8px;
+            transition: border-color 0.2s ease;
+        }
+        
+        .chat-input-row:focus-within {
+            border-color: var(--vscode-focusBorder);
+        }
+        
+        .chat-input-wrapper {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: flex-end;
+        }
+        
+        .chat-input {
+            width: 100%;
+            min-height: 24px;
+            max-height: 200px;
+            font-size: 13px;
+            color: var(--vscode-foreground);
+            background-color: transparent;
+            border: none;
+            padding: 0;
+            border-radius: 0;
+            font-family: var(--vscode-font-family);
+            resize: none;
+            overflow-y: auto;
+            line-height: 1.5;
+            outline: none;
+        }
+        
+        .chat-send-button {
+            flex-shrink: 0;
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease, opacity 0.2s ease;
+        }
+        
+        .chat-send-button:hover:not(:disabled) {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        
+        .chat-send-button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        .chat-loading {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--vscode-descriptionForeground);
+            font-size: 13px;
+            padding: 8px 16px;
+        }
+        
+        .chat-loading-dots {
+            display: inline-flex;
+            gap: 4px;
+        }
+        
+        .chat-loading-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--vscode-descriptionForeground);
+            animation: chat-loading-pulse 1.4s ease-in-out infinite;
+        }
+        
+        .chat-loading-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .chat-loading-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes chat-loading-pulse {
+            0%, 80%, 100% {
+                opacity: 0.3;
+                transform: scale(0.8);
+            }
+            40% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        .chat-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--vscode-descriptionForeground);
+            font-size: 13px;
+            padding: 40px 20px;
+            text-align: center;
+        }
+        
+        .chat-empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        .chat-empty-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            margin-bottom: 8px;
+        }
+        
+        .chat-empty-description {
+            font-size: 13px;
+            color: var(--vscode-descriptionForeground);
+            max-width: 400px;
+        }
+        
+        .chat-message-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            padding-left: 28px;
+            flex-wrap: wrap;
+        }
+        
+        .chat-action-button {
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: 1px solid var(--vscode-button-border);
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+        
+        .chat-action-button:hover:not(:disabled) {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+            border-color: var(--vscode-button-hoverBorder);
+        }
+        
+        .chat-action-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="tabs">
             <button class="tab active" data-tab="viewer">Viewer</button>
+            <button class="tab" data-tab="chat">Chat</button>
             <button class="tab" data-tab="llm">LLM</button>
         </div>
         
@@ -903,6 +1245,46 @@ export class TestCaseRenderer {
                 <div class="viewer-steps-title">Шаги тестирования</div>
                 <div class="steps-container">
                     ${stepsHtml || '<div class="empty">Нет шагов тестирования</div>'}
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-content" data-tab="chat">
+            <div class="chat-container">
+                <div class="chat-header">
+                    <div class="chat-header-title">
+                        <span>💬</span>
+                        <span>Чат LLM для тест-кейсов</span>
+                    </div>
+                    <div class="chat-header-actions">
+                        <button class="chat-header-button" id="chat-new-button" title="Новый чат">➕</button>
+                        <button class="chat-header-button" id="chat-menu-button" title="Меню">⋯</button>
+                    </div>
+                </div>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="chat-empty">
+                        <div class="chat-empty-icon">💬</div>
+                        <div class="chat-empty-title">Начните новый диалог</div>
+                        <div class="chat-empty-description">Задайте вопрос или попросите создать тест-кейс. LLM поможет вам с созданием и редактированием тест-кейсов.</div>
+                    </div>
+                </div>
+                <div class="chat-input-container">
+                    <div class="chat-input-top-row">
+                        <select class="chat-model-select" id="chat-model-select">
+                            <option value="">Выберите модель...</option>
+                        </select>
+                    </div>
+                    <div class="chat-input-row">
+                        <div class="chat-input-wrapper">
+                            <textarea 
+                                class="chat-input" 
+                                id="chat-input" 
+                                placeholder="Введите сообщение..."
+                                rows="1"
+                            ></textarea>
+                        </div>
+                        <button class="chat-send-button" id="chat-send-button" disabled>Отправить</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1217,8 +1599,12 @@ export class TestCaseRenderer {
             const tabContents = document.querySelectorAll('.tab-content');
             
             tabs.forEach(tab => {
-                tab.addEventListener('click', function() {
+                tab.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
                     const targetTab = this.getAttribute('data-tab');
+                    if (!targetTab) return;
                     
                     // Remove active class from all tabs and contents
                     tabs.forEach(t => t.classList.remove('active'));
@@ -1327,6 +1713,506 @@ export class TestCaseRenderer {
                     vscode.postMessage({ command: 'checkLlmConnection' });
                 }, 200);
             }
+            
+            // Chat functionality
+            const chatMessages = document.getElementById('chat-messages');
+            const chatInput = document.getElementById('chat-input');
+            const chatSendButton = document.getElementById('chat-send-button');
+            const chatModelSelect = document.getElementById('chat-model-select');
+            
+            let chatHistory = [];
+            
+            // Auto-resize textarea
+            if (chatInput) {
+                chatInput.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+                    
+                    // Enable/disable send button
+                    if (chatSendButton) {
+                        chatSendButton.disabled = !this.value.trim() || !chatModelSelect.value;
+                    }
+                });
+                
+                // Handle Enter key (Shift+Enter for new line, Enter to send)
+                chatInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (chatSendButton && !chatSendButton.disabled) {
+                            chatSendButton.click();
+                        }
+                    }
+                });
+            }
+            
+            // Load models when chat tab is opened
+            const chatTab = document.querySelector('.tab[data-tab="chat"]');
+            if (chatTab) {
+                chatTab.addEventListener('click', function() {
+                    setTimeout(() => {
+                        vscode.postMessage({ command: 'getLlmModels' });
+                    }, 100);
+                });
+            }
+            
+            // Handle new chat button
+            const chatNewButton = document.getElementById('chat-new-button');
+            if (chatNewButton) {
+                chatNewButton.addEventListener('click', function() {
+                    if (chatMessages) {
+                        chatMessages.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">💬</div><div class="chat-empty-title">Начните новый диалог</div><div class="chat-empty-description">Задайте вопрос или попросите создать тест-кейс. LLM поможет вам с созданием и редактированием тест-кейсов.</div></div>';
+                        chatHistory = [];
+                        
+                        // Clear saved history
+                        vscode.postMessage({
+                            command: 'saveChatHistory',
+                            history: []
+                        });
+                    }
+                });
+            }
+            
+            // Handle menu button (placeholder)
+            const chatMenuButton = document.getElementById('chat-menu-button');
+            if (chatMenuButton) {
+                chatMenuButton.addEventListener('click', function() {
+                    // TODO: Add menu functionality
+                });
+            }
+            
+            // Handle model selection change
+            if (chatModelSelect) {
+                chatModelSelect.addEventListener('change', function() {
+                    const selectedModel = this.value;
+                    if (chatSendButton && chatInput) {
+                        chatSendButton.disabled = !chatInput.value.trim() || !selectedModel;
+                    }
+                    // Save selected model
+                    if (selectedModel) {
+                        vscode.postMessage({
+                            command: 'saveChatModel',
+                            model: selectedModel
+                        });
+                    }
+                });
+            }
+            
+            // Handle send button
+            if (chatSendButton) {
+                chatSendButton.addEventListener('click', function() {
+                    if (this.disabled) return;
+                    
+                    const message = chatInput.value.trim();
+                    const model = chatModelSelect.value;
+                    
+                    if (!message || !model) return;
+                    
+                    // Add user message to chat
+                    addChatMessage('user', message);
+                    
+                    // Add to history immediately
+                    chatHistory.push({ role: 'user', content: message });
+                    
+                    // Save history
+                    vscode.postMessage({
+                        command: 'saveChatHistory',
+                        history: chatHistory
+                    });
+                    
+                    // Clear input
+                    chatInput.value = '';
+                    chatInput.style.height = 'auto';
+                    this.disabled = true;
+                    
+                    // Show loading indicator
+                    const loadingId = addChatMessage('assistant', '', true);
+                    
+                    // Send message to extension
+                    vscode.postMessage({
+                        command: 'sendChatMessage',
+                        message: message,
+                        model: model,
+                        history: chatHistory
+                    });
+                });
+            }
+            
+            function addChatMessage(role, content, isLoading = false, testCaseJson = null, fileActions = null) {
+                if (!chatMessages) return null;
+                
+                // Remove empty message if exists
+                const emptyMessage = chatMessages.querySelector('.chat-empty');
+                if (emptyMessage) {
+                    emptyMessage.remove();
+                }
+                
+                const messageId = 'msg-' + Date.now();
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'chat-message ' + role;
+                messageDiv.id = messageId;
+                
+                // Create message header
+                const headerDiv = document.createElement('div');
+                headerDiv.className = 'chat-message-header';
+                
+                const iconDiv = document.createElement('div');
+                iconDiv.className = 'chat-message-role-icon';
+                iconDiv.textContent = role === 'user' ? 'U' : 'AI';
+                
+                const roleDiv = document.createElement('div');
+                roleDiv.className = 'chat-message-role';
+                roleDiv.textContent = role === 'user' ? 'Вы' : 'Ассистент';
+                
+                headerDiv.appendChild(iconDiv);
+                headerDiv.appendChild(roleDiv);
+                
+                // Create message content
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'chat-message-content';
+                
+                if (isLoading) {
+                    contentDiv.innerHTML = '<div class="chat-loading"><span>Генерация ответа</span><div class="chat-loading-dots"><span class="chat-loading-dot"></span><span class="chat-loading-dot"></span><span class="chat-loading-dot"></span></div></div>';
+                } else {
+                    contentDiv.textContent = content;
+                }
+                
+                messageDiv.appendChild(headerDiv);
+                messageDiv.appendChild(contentDiv);
+                
+                // Add action buttons
+                if (role === 'assistant' && !isLoading) {
+                    const actionsDiv = document.createElement('div');
+                    actionsDiv.className = 'chat-message-actions';
+                    
+                    // Add create test case button if JSON is detected
+                    if (testCaseJson) {
+                        const createButton = document.createElement('button');
+                        createButton.className = 'chat-action-button';
+                        createButton.textContent = 'Создать тест-кейс';
+                        createButton.setAttribute('data-test-case-json', JSON.stringify(testCaseJson));
+                        createButton.addEventListener('click', function() {
+                            const jsonData = this.getAttribute('data-test-case-json');
+                            if (jsonData) {
+                                vscode.postMessage({
+                                    command: 'createTestCaseFromJson',
+                                    testCaseJson: JSON.parse(jsonData)
+                                });
+                            }
+                        });
+                        actionsDiv.appendChild(createButton);
+                    }
+                    
+                    // Add file action buttons if LLM provided actions
+                    if (fileActions && Array.isArray(fileActions) && fileActions.length > 0) {
+                        fileActions.forEach(function(action) {
+                            if (action.action === 'create_file') {
+                                const createFileButton = document.createElement('button');
+                                createFileButton.className = 'chat-action-button';
+                                createFileButton.textContent = 'Создать файл: ' + (action.fileName || 'новый_файл.json');
+                                createFileButton.addEventListener('click', function() {
+                                    vscode.postMessage({
+                                        command: 'executeFileAction',
+                                        action: action.action,
+                                        data: action
+                                    });
+                                });
+                                actionsDiv.appendChild(createFileButton);
+                            } else if (action.action === 'update_file') {
+                                const updateFileButton = document.createElement('button');
+                                updateFileButton.className = 'chat-action-button';
+                                updateFileButton.textContent = 'Обновить текущий файл';
+                                updateFileButton.addEventListener('click', function() {
+                                    vscode.postMessage({
+                                        command: 'executeFileAction',
+                                        action: action.action,
+                                        data: action
+                                    });
+                                });
+                                actionsDiv.appendChild(updateFileButton);
+                            } else if (action.action === 'create_file_from_current') {
+                                const createFromCurrentButton = document.createElement('button');
+                                createFromCurrentButton.className = 'chat-action-button';
+                                createFromCurrentButton.textContent = 'Создать файл: ' + (action.fileName || 'новый_файл.json');
+                                createFromCurrentButton.addEventListener('click', function() {
+                                    vscode.postMessage({
+                                        command: 'executeFileAction',
+                                        action: action.action,
+                                        data: action
+                                    });
+                                });
+                                actionsDiv.appendChild(createFromCurrentButton);
+                            }
+                        });
+                    }
+                    
+                    if (actionsDiv.children.length > 0) {
+                        messageDiv.appendChild(actionsDiv);
+                    }
+                }
+                
+                chatMessages.appendChild(messageDiv);
+                
+                // Scroll to bottom
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                
+                return messageId;
+            }
+            
+            function extractTestCaseJson(text) {
+                // Try to find JSON in the text (between code blocks or just JSON object)
+                // Look for code block with json marker
+                const backtick = String.fromCharCode(96);
+                const codeBlockMarker = backtick + backtick + backtick;
+                const codeBlockStart = text.indexOf(codeBlockMarker + 'json');
+                if (codeBlockStart !== -1) {
+                    const codeBlockEnd = text.indexOf(codeBlockMarker, codeBlockStart + 7);
+                    if (codeBlockEnd !== -1) {
+                        const jsonText = text.substring(codeBlockStart + 7, codeBlockEnd).trim();
+                        try {
+                            return JSON.parse(jsonText);
+                        } catch (e) {
+                            // Not valid JSON
+                        }
+                    }
+                }
+                
+                // Try to find JSON object directly - look for opening brace
+                const firstBrace = text.indexOf('{');
+                if (firstBrace !== -1) {
+                    // Try to find matching closing brace
+                    let braceCount = 0;
+                    let jsonEnd = -1;
+                    for (let i = firstBrace; i < text.length; i++) {
+                        if (text[i] === '{') braceCount++;
+                        if (text[i] === '}') {
+                            braceCount--;
+                            if (braceCount === 0) {
+                                jsonEnd = i;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (jsonEnd !== -1) {
+                        try {
+                            const jsonText = text.substring(firstBrace, jsonEnd + 1);
+                            const parsed = JSON.parse(jsonText);
+                            // Check if it looks like a test case
+                            if (parsed.id && parsed.name && Array.isArray(parsed.steps)) {
+                                return parsed;
+                            }
+                        } catch (e) {
+                            // Not valid JSON
+                        }
+                    }
+                }
+                
+                return null;
+            }
+            
+            function updateChatMessage(messageId, content, testCaseJson = null, fileActions = null) {
+                const messageDiv = document.getElementById(messageId);
+                if (messageDiv) {
+                    const contentDiv = messageDiv.querySelector('.chat-message-content');
+                    if (contentDiv) {
+                        // Remove loading indicator if exists
+                        const loading = contentDiv.querySelector('.chat-loading');
+                        if (loading) {
+                            contentDiv.innerHTML = '';
+                        }
+                        contentDiv.textContent = content;
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+                    
+                    // Remove existing actions
+                    const existingActions = messageDiv.querySelector('.chat-message-actions');
+                    if (existingActions) {
+                        existingActions.remove();
+                    }
+                    
+                    // Add new action buttons
+                    if (testCaseJson || (fileActions && fileActions.length > 0)) {
+                        const actionsDiv = document.createElement('div');
+                        actionsDiv.className = 'chat-message-actions';
+                        
+                        // Add create test case button if JSON is detected
+                        if (testCaseJson) {
+                            const createButton = document.createElement('button');
+                            createButton.className = 'chat-action-button';
+                            createButton.textContent = 'Создать тест-кейс';
+                            createButton.setAttribute('data-test-case-json', JSON.stringify(testCaseJson));
+                            createButton.addEventListener('click', function() {
+                                const jsonData = this.getAttribute('data-test-case-json');
+                                if (jsonData) {
+                                    vscode.postMessage({
+                                        command: 'createTestCaseFromJson',
+                                        testCaseJson: JSON.parse(jsonData)
+                                    });
+                                }
+                            });
+                            actionsDiv.appendChild(createButton);
+                        }
+                        
+                        // Add file action buttons if LLM provided actions
+                        if (fileActions && Array.isArray(fileActions) && fileActions.length > 0) {
+                            fileActions.forEach(function(action) {
+                                if (action.action === 'create_file') {
+                                    const createFileButton = document.createElement('button');
+                                    createFileButton.className = 'chat-action-button';
+                                    createFileButton.textContent = 'Создать файл: ' + (action.fileName || 'новый_файл.json');
+                                    createFileButton.addEventListener('click', function() {
+                                        vscode.postMessage({
+                                            command: 'executeFileAction',
+                                            action: action.action,
+                                            data: action
+                                        });
+                                    });
+                                    actionsDiv.appendChild(createFileButton);
+                                } else if (action.action === 'update_file') {
+                                    const updateFileButton = document.createElement('button');
+                                    updateFileButton.className = 'chat-action-button';
+                                    updateFileButton.textContent = 'Обновить текущий файл';
+                                    updateFileButton.addEventListener('click', function() {
+                                        vscode.postMessage({
+                                            command: 'executeFileAction',
+                                            action: action.action,
+                                            data: action
+                                        });
+                                    });
+                                    actionsDiv.appendChild(updateFileButton);
+                                } else if (action.action === 'create_file_from_current') {
+                                    const createFromCurrentButton = document.createElement('button');
+                                    createFromCurrentButton.className = 'chat-action-button';
+                                    createFromCurrentButton.textContent = 'Создать файл: ' + (action.fileName || 'новый_файл.json');
+                                    createFromCurrentButton.addEventListener('click', function() {
+                                        vscode.postMessage({
+                                            command: 'executeFileAction',
+                                            action: action.action,
+                                            data: action
+                                        });
+                                    });
+                                    actionsDiv.appendChild(createFromCurrentButton);
+                                }
+                            });
+                        }
+                        
+                        if (actionsDiv.children.length > 0) {
+                            messageDiv.appendChild(actionsDiv);
+                        }
+                    }
+                }
+            }
+            
+            // Handle chat messages from extension
+            window.addEventListener('message', event => {
+                const message = event.data;
+                
+                if (message.command === 'chatResponse') {
+                    const loadingMessage = chatMessages.querySelector('.chat-message.assistant .chat-loading');
+                    let testCaseJson = null;
+                    
+                    if (message.content && !message.error) {
+                        testCaseJson = extractTestCaseJson(message.content);
+                    }
+                    
+                    if (loadingMessage) {
+                        const messageDiv = loadingMessage.closest('.chat-message');
+                        if (messageDiv) {
+                            const messageId = messageDiv.id;
+                            if (message.error) {
+                                updateChatMessage(messageId, 'Ошибка: ' + message.error);
+                            } else {
+                                updateChatMessage(messageId, message.content || '', testCaseJson, message.fileActions);
+                            }
+                        }
+                    } else {
+                        addChatMessage('assistant', message.content || message.error || '', false, testCaseJson, message.fileActions);
+                    }
+                    
+                    // Update chat history
+                    if (message.content && !message.error) {
+                        chatHistory.push({ role: 'user', content: message.userMessage });
+                        chatHistory.push({ role: 'assistant', content: message.content });
+                        
+                        // Save chat history
+                        vscode.postMessage({
+                            command: 'saveChatHistory',
+                            history: chatHistory
+                        });
+                    }
+                    
+                    // Re-enable send button
+                    if (chatSendButton && chatInput && chatModelSelect) {
+                        chatSendButton.disabled = !chatInput.value.trim() || !chatModelSelect.value;
+                    }
+                }
+                
+                if (message.command === 'chatStateLoaded') {
+                    // Restore saved model
+                    if (message.model && chatModelSelect) {
+                        // Wait for models to be loaded first
+                        setTimeout(() => {
+                            if (chatModelSelect.querySelector('option[value="' + message.model + '"]')) {
+                                chatModelSelect.value = message.model;
+                                if (chatSendButton && chatInput) {
+                                    chatSendButton.disabled = !chatInput.value.trim() || !message.model;
+                                }
+                            }
+                        }, 500);
+                    }
+                    
+                    // Restore chat history
+                    if (message.history && Array.isArray(message.history) && message.history.length > 0) {
+                        chatHistory = message.history;
+                        
+                        // Re-render messages from history
+                        if (chatMessages) {
+                            const emptyMessage = chatMessages.querySelector('.chat-empty');
+                            if (emptyMessage) {
+                                emptyMessage.remove();
+                            }
+                            
+                            // Render all messages from history
+                            message.history.forEach(function(msg) {
+                                if (msg.role === 'user' || msg.role === 'assistant') {
+                                    addChatMessage(msg.role, msg.content, false, null, null);
+                                }
+                            });
+                            
+                            // Scroll to bottom
+                            chatMessages.scrollTop = chatMessages.scrollHeight;
+                        }
+                    }
+                }
+                
+                if (message.command === 'llmModelsList' && chatModelSelect) {
+                    // Update model select in chat tab
+                    const currentValue = chatModelSelect.value;
+                    chatModelSelect.innerHTML = '<option value="">Выберите модель...</option>';
+                    
+                    if (message.models && message.models.length > 0) {
+                        message.models.forEach(model => {
+                            const option = document.createElement('option');
+                            option.value = model;
+                            option.textContent = model;
+                            chatModelSelect.appendChild(option);
+                        });
+                        
+                        // Restore previous selection if it still exists
+                        if (currentValue) {
+                            const option = Array.from(chatModelSelect.options).find(opt => opt.value === currentValue);
+                            if (option) {
+                                chatModelSelect.value = currentValue;
+                            }
+                        }
+                    }
+                    
+                    // Update send button state
+                    if (chatSendButton && chatInput) {
+                        chatSendButton.disabled = !chatInput.value.trim() || !chatModelSelect.value;
+                    }
+                }
+            });
         })();
     </script>
 </body>
