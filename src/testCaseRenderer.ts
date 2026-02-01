@@ -126,16 +126,16 @@ export class TestCaseRenderer {
             return `
                 <div class="step" data-step-id="${this.escapeHtml(step.id || '')}" data-step-index="${index}">
                     <div class="step-header">
-                        <div class="step-name">Шаг ${stepNumber}</div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            ${step.status ? `<div class="step-status ${statusClass}">${this.getStatusLabel(step.status)}</div>` : ''}
-                            <div class="step-actions">
-                                <button class="step-action-btn" data-action="move-up" data-step-id="${this.escapeHtml(step.id || '')}" ${isFirst ? 'disabled' : ''} title="Переместить выше">↑</button>
-                                <button class="step-action-btn" data-action="move-down" data-step-id="${this.escapeHtml(step.id || '')}" ${isLast ? 'disabled' : ''} title="Переместить ниже">↓</button>
-                                <button class="step-action-btn" data-action="add-above" data-step-id="${this.escapeHtml(step.id || '')}" title="Добавить шаг выше">+↑</button>
-                                <button class="step-action-btn" data-action="add-below" data-step-id="${this.escapeHtml(step.id || '')}" title="Добавить шаг ниже">+↓</button>
-                                <button class="step-action-btn step-action-btn-danger" data-action="delete" data-step-id="${this.escapeHtml(step.id || '')}" title="Удалить шаг">×</button>
-                            </div>
+                        <div class="step-number">
+                            Шаг ${stepNumber}
+                            ${step.status ? `<span class="step-status ${statusClass}">${this.getStatusLabel(step.status)}</span>` : ''}
+                        </div>
+                        <div class="step-actions">
+                            <button class="step-action-btn" data-action="move-up" data-step-id="${this.escapeHtml(step.id || '')}" ${isFirst ? 'disabled' : ''} title="Переместить выше">↑</button>
+                            <button class="step-action-btn" data-action="move-down" data-step-id="${this.escapeHtml(step.id || '')}" ${isLast ? 'disabled' : ''} title="Переместить ниже">↓</button>
+                            <button class="step-action-btn" data-action="add-above" data-step-id="${this.escapeHtml(step.id || '')}" title="Добавить шаг выше">+↑</button>
+                            <button class="step-action-btn" data-action="add-below" data-step-id="${this.escapeHtml(step.id || '')}" title="Добавить шаг ниже">+↓</button>
+                            <button class="step-action-btn step-action-btn-danger" data-action="delete" data-step-id="${this.escapeHtml(step.id || '')}" title="Удалить шаг">×</button>
                         </div>
                     </div>
                     <textarea 
@@ -216,8 +216,8 @@ export class TestCaseRenderer {
             font-family: var(--vscode-font-family);
             color: var(--vscode-foreground);
             background-color: var(--vscode-editor-background);
-            padding: 20px;
-            line-height: 1.6;
+            padding: 24px;
+            line-height: 1.5;
             margin: 0;
             transition: transform 0.1s ease;
             min-height: 100%;
@@ -225,8 +225,8 @@ export class TestCaseRenderer {
         }
         
         .container {
-            max-width: 1200px;
-            margin: 0;
+            max-width: 1000px;
+            margin: 0 auto;
         }
         
         .tabs {
@@ -422,15 +422,149 @@ export class TestCaseRenderer {
             outline-offset: -1px;
         }
         
+        /* Minimalist styles for Viewer tab */
+        .viewer-header {
+            margin-bottom: 32px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+        
+        .viewer-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            margin-bottom: 8px;
+        }
+        
+        .viewer-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            font-size: 13px;
+            color: var(--vscode-descriptionForeground);
+            margin-top: 12px;
+        }
+        
+        .viewer-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .viewer-meta-label {
+            color: var(--vscode-descriptionForeground);
+            opacity: 0.7;
+        }
+        
+        .viewer-meta-select {
+            background: transparent;
+            border: none;
+            color: var(--vscode-foreground);
+            font-size: 13px;
+            padding: 0;
+            margin: 0;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+        
+        .viewer-meta-select:hover {
+            opacity: 0.8;
+        }
+        
+        .viewer-meta-select:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: 2px;
+            border-radius: 2px;
+        }
+        
+        /* Стили для опций в выпадающем списке - темная тема */
+        .viewer-meta-select option {
+            background-color: var(--vscode-dropdown-background) !important;
+            color: var(--vscode-dropdown-foreground) !important;
+        }
+        
+        /* Для WebKit браузеров (Chrome, Edge) */
+        .viewer-meta-select::-webkit-list-button {
+            background-color: var(--vscode-dropdown-background);
+        }
+        
+        /* Для Firefox */
+        .viewer-meta-select::-moz-list-box {
+            background-color: var(--vscode-dropdown-background);
+        }
+        
+        .viewer-title {
+            background: transparent;
+            border: none;
+            padding: 0;
+            width: 100%;
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            font-family: var(--vscode-font-family);
+        }
+        
+        .viewer-title:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: 2px;
+            border-radius: 2px;
+        }
+        
+        .viewer-section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            margin-bottom: 8px;
+            margin-top: 16px;
+        }
+        
+        .viewer-section-title:first-of-type {
+            margin-top: 0;
+        }
+        
+        .viewer-description {
+            margin-bottom: 16px;
+            padding: 16px;
+            background-color: var(--vscode-editor-inactiveSelectionBackground);
+            border-radius: 4px;
+            font-size: 14px;
+            color: var(--vscode-foreground);
+            white-space: pre-wrap;
+            line-height: 1.6;
+            border: none;
+            width: 100%;
+            min-height: 80px;
+            resize: vertical;
+            font-family: var(--vscode-font-family);
+        }
+        
+        .viewer-description:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+        
+        .viewer-steps {
+            margin-top: 16px;
+        }
+        
+        .viewer-steps-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            margin-bottom: 20px;
+        }
+        
         .steps-container {
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 24px;
         }
         
         .step {
             background-color: var(--vscode-editor-inactiveSelectionBackground);
-            border-left: 3px solid var(--vscode-textLink-foreground);
+            border-left: 2px solid var(--vscode-textLink-foreground);
             padding: 16px;
             border-radius: 4px;
         }
@@ -439,7 +573,17 @@ export class TestCaseRenderer {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
+        }
+        
+        .step-number {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--vscode-textLink-foreground);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         
         .step-actions {
@@ -490,10 +634,12 @@ export class TestCaseRenderer {
         }
         
         .step-status {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 12px;
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
             font-weight: 500;
+            margin-left: 8px;
         }
         
         .step-status.skipped {
@@ -531,6 +677,7 @@ export class TestCaseRenderer {
             white-space: pre-wrap;
             overflow: hidden;
             box-sizing: border-box;
+            margin-bottom: 12px;
         }
         
         .step-description-editable:focus {
@@ -539,18 +686,17 @@ export class TestCaseRenderer {
         }
         
         .step-expected {
-            background-color: var(--vscode-textBlockQuote-background);
-            border-left: 3px solid var(--vscode-textBlockQuote-border);
-            padding: 12px;
-            border-radius: 4px;
-            margin-top: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--vscode-panel-border);
+            font-size: 13px;
         }
         
         .step-expected-label {
-            font-size: 12px;
+            font-size: 13px;
             color: var(--vscode-descriptionForeground);
-            margin-bottom: 4px;
             font-weight: 500;
+            margin-bottom: 4px;
         }
         
         .step-expected-value {
@@ -560,7 +706,7 @@ export class TestCaseRenderer {
         }
         
         .step-expected-value-editable {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--vscode-foreground);
             background-color: var(--vscode-input-background);
             border: 1px solid var(--vscode-input-border);
@@ -651,182 +797,114 @@ export class TestCaseRenderer {
         </div>
         
         <div class="tab-content active" data-tab="viewer">
-        <div class="section">
-            <div class="section-title section-title-collapsible" data-section="info">
-                <span>Информация о тест-кейсе</span>
-                <span class="section-toggle">▼</span>
-            </div>
-            <div class="section-content" data-section="info">
-            <div class="info-grid">
-                <div class="info-item">
-                    <div class="info-label">ID:</div>
-                    <div class="info-value">${this.escapeHtml(testCase.id || '')}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Название:</div>
-                    <input 
-                        type="text" 
-                        class="info-value-editable" 
-                        id="test-case-name" 
-                        value="${this.escapeHtml(testCase.name || '')}"
-                        data-field="name"
-                    />
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Test Case ID:</div>
-                    <div class="info-value">${this.escapeHtml(testCase.testCaseId || '')}</div>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Статус:</div>
-                    <select 
-                        class="info-value-select" 
-                        id="test-case-status" 
-                        data-field="status"
-                    >
-                        <option value="Draft" ${testCase.status === 'Draft' ? 'selected' : ''}>Draft</option>
-                        <option value="Design" ${testCase.status === 'Design' ? 'selected' : ''}>Design</option>
-                        <option value="Review" ${testCase.status === 'Review' ? 'selected' : ''}>Review</option>
-                        <option value="Done" ${testCase.status === 'Done' ? 'selected' : ''}>Done</option>
-                    </select>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Тип теста:</div>
-                    <select 
-                        class="info-value-select" 
-                        id="test-case-type" 
-                        data-field="testType"
-                    >
-                        <option value="Manual" ${testCase.testType === 'Manual' || testCase.testType === 'manual' ? 'selected' : ''}>Manual</option>
-                        <option value="Hybrid" ${testCase.testType === 'Hybrid' || testCase.testType === 'hybrid' ? 'selected' : ''}>Hybrid</option>
-                        <option value="Automated" ${testCase.testType === 'Automated' || testCase.testType === 'automated' ? 'selected' : ''}>Automated</option>
-                    </select>
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Владелец:</div>
-                    ${testers && testers.length > 0 ? `
-                    <select 
-                        class="info-value-select" 
-                        id="test-case-owner" 
-                        data-field="owner"
-                    >
-                        <option value="">-- Выберите --</option>
-                        ${testers.map(tester => `<option value="${this.escapeHtml(tester)}" ${testCase.owner === tester ? 'selected' : ''}>${this.escapeHtml(tester)}</option>`).join('')}
-                    </select>
-                    ` : `
-                    <div class="info-value">${this.escapeHtml(testCase.owner || '')}</div>
-                    `}
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Автор:</div>
-                    ${testers && testers.length > 0 ? `
-                    <select 
-                        class="info-value-select" 
-                        id="test-case-author" 
-                        data-field="author"
-                    >
-                        <option value="">-- Выберите --</option>
-                        ${testers.map(tester => `<option value="${this.escapeHtml(tester)}" ${testCase.author === tester ? 'selected' : ''}>${this.escapeHtml(tester)}</option>`).join('')}
-                    </select>
-                    ` : `
-                    <div class="info-value">${this.escapeHtml(testCase.author || '')}</div>
-                    `}
-                </div>
-                <div class="info-item">
-                    <div class="info-label">Ревьювер:</div>
-                    ${testers && testers.length > 0 ? `
-                    <select 
-                        class="info-value-select" 
-                        id="test-case-reviewer" 
-                        data-field="reviewer"
-                    >
-                        <option value="">-- Выберите --</option>
-                        ${testers.map(tester => `<option value="${this.escapeHtml(tester)}" ${testCase.reviewer === tester ? 'selected' : ''}>${this.escapeHtml(tester)}</option>`).join('')}
-                    </select>
-                    ` : `
-                    <div class="info-value">${this.escapeHtml(testCase.reviewer || '')}</div>
-                    `}
+            <div class="viewer-header">
+                <input 
+                    type="text" 
+                    class="viewer-title" 
+                    id="test-case-name" 
+                    value="${this.escapeHtml(testCase.name || '')}"
+                    data-field="name"
+                />
+                <div class="viewer-meta">
+                    <div class="viewer-meta-item">
+                        <span class="viewer-meta-label">ID:</span>
+                        <span>${this.escapeHtml(testCase.id || '')}</span>
+                    </div>
+                    <div class="viewer-meta-item">
+                        <span class="viewer-meta-label">Статус:</span>
+                        <select 
+                            class="viewer-meta-select" 
+                            id="test-case-status" 
+                            data-field="status"
+                        >
+                            <option value="Draft" ${testCase.status === 'Draft' ? 'selected' : ''}>Draft</option>
+                            <option value="Design" ${testCase.status === 'Design' ? 'selected' : ''}>Design</option>
+                            <option value="Review" ${testCase.status === 'Review' ? 'selected' : ''}>Review</option>
+                            <option value="Done" ${testCase.status === 'Done' ? 'selected' : ''}>Done</option>
+                        </select>
+                    </div>
+                    <div class="viewer-meta-item">
+                        <span class="viewer-meta-label">Тип:</span>
+                        <select 
+                            class="viewer-meta-select" 
+                            id="test-case-type" 
+                            data-field="testType"
+                        >
+                            <option value="Manual" ${testCase.testType === 'Manual' || testCase.testType === 'manual' ? 'selected' : ''}>Manual</option>
+                            <option value="Hybrid" ${testCase.testType === 'Hybrid' || testCase.testType === 'hybrid' ? 'selected' : ''}>Hybrid</option>
+                            <option value="Automated" ${testCase.testType === 'Automated' || testCase.testType === 'automated' ? 'selected' : ''}>Automated</option>
+                        </select>
+                    </div>
+                    <div class="viewer-meta-item">
+                        <span class="viewer-meta-label">Владелец:</span>
+                        ${testers && testers.length > 0 ? `
+                        <select 
+                            class="viewer-meta-select" 
+                            id="test-case-owner" 
+                            data-field="owner"
+                        >
+                            <option value="">-- Выберите --</option>
+                            ${testers.map(tester => `<option value="${this.escapeHtml(tester)}" ${testCase.owner === tester ? 'selected' : ''}>${this.escapeHtml(tester)}</option>`).join('')}
+                        </select>
+                        ` : `
+                        <span>${this.escapeHtml(testCase.owner || '')}</span>
+                        `}
+                    </div>
+                    <div class="viewer-meta-item">
+                        <span class="viewer-meta-label">Автор:</span>
+                        ${testers && testers.length > 0 ? `
+                        <select 
+                            class="viewer-meta-select" 
+                            id="test-case-author" 
+                            data-field="author"
+                        >
+                            <option value="">-- Выберите --</option>
+                            ${testers.map(tester => `<option value="${this.escapeHtml(tester)}" ${testCase.author === tester ? 'selected' : ''}>${this.escapeHtml(tester)}</option>`).join('')}
+                        </select>
+                        ` : `
+                        <span>${this.escapeHtml(testCase.author || '')}</span>
+                        `}
+                    </div>
+                    <div class="viewer-meta-item">
+                        <span class="viewer-meta-label">Ревьювер:</span>
+                        ${testers && testers.length > 0 ? `
+                        <select 
+                            class="viewer-meta-select" 
+                            id="test-case-reviewer" 
+                            data-field="reviewer"
+                        >
+                            <option value="">-- Выберите --</option>
+                            ${testers.map(tester => `<option value="${this.escapeHtml(tester)}" ${testCase.reviewer === tester ? 'selected' : ''}>${this.escapeHtml(tester)}</option>`).join('')}
+                        </select>
+                        ` : `
+                        <span>${this.escapeHtml(testCase.reviewer || '')}</span>
+                        `}
+                    </div>
                 </div>
             </div>
-            </div>
-        </div>
-        
-        <div class="section">
-            <div class="section-title section-title-collapsible" data-section="epic">
-                <span>Epic / Feature / Story</span>
-                <span class="section-toggle">▼</span>
-            </div>
-            <div class="section-content" data-section="epic" style="padding-top: 0; padding-bottom: 0;">
-            <div class="info-grid">
-                <div class="info-item">
-                    <div class="info-label">epic:</div>
-                    <input 
-                        type="text" 
-                        class="info-value-editable" 
-                        id="test-case-epic" 
-                        data-field="epic"
-                        value="${this.escapeHtml(testCase.epic || '')}"
-                    />
-                </div>
-                <div class="info-item">
-                    <div class="info-label">feature:</div>
-                    <input 
-                        type="text" 
-                        class="info-value-editable" 
-                        id="test-case-feature" 
-                        data-field="feature"
-                        value="${this.escapeHtml(testCase.feature || '')}"
-                    />
-                </div>
-                <div class="info-item">
-                    <div class="info-label">story:</div>
-                    <input 
-                        type="text" 
-                        class="info-value-editable" 
-                        id="test-case-story" 
-                        data-field="story"
-                        value="${this.escapeHtml(testCase.story || '')}"
-                    />
-                </div>
-            </div>
-            </div>
-        </div>
-        
-        <div class="section">
-            <div class="section-title section-title-collapsible" data-section="description">
-                <span>Описание</span>
-                <span class="section-toggle">▼</span>
-            </div>
-            <div class="section-content" data-section="description" style="padding-top: 0; padding-bottom: 0;">
+            
+            <div class="viewer-section-title">Описание</div>
             <textarea 
-                class="description-editable" 
+                class="viewer-description" 
                 id="test-case-description" 
                 data-field="description"
                 placeholder="Описание тест-кейса"
             >${this.escapeHtml(testCase.description || '')}</textarea>
-            </div>
-        </div>
-        
-        <div class="section">
-            <div class="section-title section-title-collapsible" data-section="preconditions">
-                <span>Предусловие</span>
-                <span class="section-toggle">▼</span>
-            </div>
-            <div class="section-content" data-section="preconditions" style="padding-top: 0; padding-bottom: 0;">
+            
+            <div class="viewer-section-title">Предусловие</div>
             <textarea 
-                class="description-editable" 
+                class="viewer-description" 
                 id="test-case-preconditions" 
                 data-field="preconditions"
                 placeholder="Предусловия для выполнения тест-кейса"
             >${this.escapeHtml(testCase.preconditions || '')}</textarea>
+            
+            <div class="viewer-steps">
+                <div class="viewer-steps-title">Шаги тестирования</div>
+                <div class="steps-container">
+                    ${stepsHtml || '<div class="empty">Нет шагов тестирования</div>'}
+                </div>
             </div>
-        </div>
-        
-        <div class="section">
-            <div class="section-title">Шаги тестирования</div>
-            <div class="steps-container">
-                ${stepsHtml || '<div class="empty">Нет шагов тестирования</div>'}
-            </div>
-        </div>
         </div>
         
         <div class="tab-content" data-tab="llm">
