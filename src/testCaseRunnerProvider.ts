@@ -427,13 +427,94 @@ export class TestCaseRunnerProvider {
     /**
      * Рендеринг дерева в HTML
      */
+    private calculateNodeStatus(node: TestCaseNode): 'passed' | 'failed' | 'skipped' | null {
+        if (node.type === 'testcase') {
+            if (!node.data || !node.data.steps || !Array.isArray(node.data.steps) || node.data.steps.length === 0) {
+                return null;
+            }
+            
+            const steps = node.data.steps;
+            const hasFailed = steps.some(step => step.status === 'failed');
+            const hasSkipped = steps.some(step => step.status === 'skipped');
+            const allPassed = steps.every(step => step.status === 'passed');
+            
+            // Приоритет: failed > skipped > passed
+            // Если есть хотя бы один failed - failed
+            if (hasFailed) {
+                return 'failed';
+            }
+            // Если есть хотя бы один skipped - skipped (только для тест-кейса, не транслируется)
+            if (hasSkipped) {
+                return 'skipped';
+            }
+            // Если ВСЕ шаги passed - passed
+            if (allPassed) {
+                return 'passed';
+            }
+            // Если есть шаги с пустым статусом или другим - нет кружка
+            return null;
+        } else {
+            // Для папки проверяем всех детей рекурсивно
+            let hasFailed = false;
+            let allPassed = true;
+            let hasAnyChild = false;
+            
+            const checkNode = (n: TestCaseNode) => {
+                if (n.type === 'testcase') {
+                    const status = this.calculateNodeStatus(n);
+                    if (status === 'failed') {
+                        hasFailed = true;
+                        allPassed = false;
+                        hasAnyChild = true;
+                    } else if (status === 'passed') {
+                        // Для passed нужно проверить, что ВСЕ шаги passed
+                        hasAnyChild = true;
+                    } else if (status === null || status === 'skipped') {
+                        // Если тест-кейс без статуса или skipped - папка не может быть passed
+                        allPassed = false;
+                        // skipped не транслируется на папки
+                    }
+                } else {
+                    // Для подпапки рекурсивно вычисляем её статус
+                    const folderStatus = this.calculateNodeStatus(n);
+                    if (folderStatus === 'failed') {
+                        hasFailed = true;
+                        allPassed = false;
+                        hasAnyChild = true;
+                    } else if (folderStatus === 'passed') {
+                        hasAnyChild = true;
+                    } else {
+                        // Если подпапка без статуса (null) или skipped - папка не может быть passed
+                        allPassed = false;
+                    }
+                }
+            };
+            
+            node.children.forEach(checkNode);
+            
+            // Если есть failed в любом месте (включая подпапки) - папка failed (транслируется вверх)
+            if (hasFailed) {
+                return 'failed';
+            }
+            // Если все passed (включая все подпапки) и есть хотя бы один ребенок - папка passed (транслируется вверх)
+            if (allPassed && hasAnyChild) {
+                return 'passed';
+            }
+            return null;
+        }
+    }
+
     private renderTreeHtml(nodes: TestCaseNode[], level: number = 0): string {
         return nodes.map(node => {
+            const nodeStatus = this.calculateNodeStatus(node);
+            const statusClass = nodeStatus ? `status-${nodeStatus}` : '';
+            
             if (node.type === 'folder') {
                 const indent = level * 5; // Отступ 5px на каждый уровень
                 return `
                     <div class="tree-folder" style="padding-left: ${indent}px;">
                         <div class="tree-folder-header" data-path="${this.escapeHtml(node.path)}">
+                            <span class="tree-status-indicator ${statusClass}"></span>
                             <span class="tree-folder-icon">📁</span>
                             <span class="tree-folder-name">${this.escapeHtml(node.name)}</span>
                             <span class="tree-folder-toggle">▼</span>
@@ -468,6 +549,7 @@ export class TestCaseRunnerProvider {
                          data-feature="${this.escapeHtml(feature)}"
                          data-story="${this.escapeHtml(story)}"
                          data-tags="${this.escapeHtml(tags)}">
+                        <span class="tree-status-indicator ${statusClass}"></span>
                         <span class="tree-testcase-icon">📄</span>
                         <span class="tree-testcase-name" title="${this.escapeHtml(node.name)}">${this.escapeHtml(node.name)}</span>
                     </div>
@@ -914,10 +996,33 @@ export class TestCaseRunnerProvider {
             cursor: pointer;
             transition: background-color 0.2s;
             border-radius: 3px;
+            min-width: 0;
+            overflow: hidden;
         }
         
         .tree-folder-header:hover {
             background-color: var(--hover-bg);
+        }
+        
+        .tree-status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            flex-shrink: 0;
+            display: inline-block;
+        }
+        
+        .tree-status-indicator.status-passed {
+            background-color: #28a745;
+        }
+        
+        .tree-status-indicator.status-failed {
+            background-color: #dc3545;
+        }
+        
+        .tree-status-indicator.status-skipped {
+            background-color: #9e9e9e;
         }
         
         .tree-folder-icon {
@@ -930,6 +1035,10 @@ export class TestCaseRunnerProvider {
             font-size: 12px;
             color: var(--text-primary);
             font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
         }
         
         .tree-folder-toggle {
@@ -1571,9 +1680,9 @@ export class TestCaseRunnerProvider {
         <button class="download-btn" id="save-selected-btn" disabled>Сохранить выбранный</button>
     </div>
     <div class="context-menu" id="context-menu">
-        <div class="context-menu-item" id="context-menu-all-passed">Все пройдено</div>
-        <div class="context-menu-item" id="context-menu-all-passed-folder">Пометить все pass</div>
-        <div class="context-menu-item" id="context-menu-all-skipped">Пометить все skipped</div>
+        <div class="context-menu-item" id="context-menu-all-passed">Пометить все <span style="color: #28a745;">pass</span></div>
+        <div class="context-menu-item" id="context-menu-all-skipped">Пометить все <span style="color: #6c757d;">skipped</span></div>
+        <div class="context-menu-item" id="context-menu-reset-statuses">Сбросить статусы</div>
     </div>
     <div class="modal-overlay" id="skip-reason-modal" style="display: none;">
         <div class="modal">
@@ -1592,6 +1701,22 @@ export class TestCaseRunnerProvider {
             <div class="modal-buttons">
                 <button class="modal-btn modal-btn-secondary" id="skip-reason-cancel">Отмена</button>
                 <button class="modal-btn modal-btn-primary" id="skip-reason-confirm">Применить</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-overlay" id="reset-statuses-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-title">Подтверждение сброса статусов</div>
+            <div class="modal-content">
+                <p style="margin: 0; color: var(--text-primary); font-size: 13px; line-height: 1.5;">
+                    Вы уверены, что хотите сбросить все статусы?<br/>
+                    Все причины провала тестов (bugLink) и причины пропуска тестов (skipReason) будут очищены.<br/>
+                    Все статусы шагов будут сброшены.
+                </p>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" id="reset-statuses-cancel">Отмена</button>
+                <button class="modal-btn modal-btn-primary" id="reset-statuses-confirm">Подтвердить</button>
             </div>
         </div>
     </div>
@@ -1906,6 +2031,156 @@ export class TestCaseRunnerProvider {
                 }
             }
             
+            // Функция для вычисления статуса тест-кейса
+            function calculateTestCaseStatus(testCase) {
+                if (!testCase.steps || !Array.isArray(testCase.steps) || testCase.steps.length === 0) {
+                    return null;
+                }
+                
+                const steps = testCase.steps;
+                const hasFailed = steps.some(step => step.status === 'failed');
+                const hasSkipped = steps.some(step => step.status === 'skipped');
+                const allPassed = steps.every(step => step.status === 'passed');
+                
+                // Приоритет: failed > skipped > passed
+                // Если есть хотя бы один failed - failed
+                if (hasFailed) {
+                    return 'failed';
+                }
+                // Если есть хотя бы один skipped - skipped (только для тест-кейса, не транслируется)
+                if (hasSkipped) {
+                    return 'skipped';
+                }
+                // Если ВСЕ шаги passed - passed
+                if (allPassed) {
+                    return 'passed';
+                }
+                // Если есть шаги с пустым статусом или другим - нет кружка
+                return null;
+            }
+            
+            // Функция для обновления статусов индикаторов в дереве
+            function updateTreeStatusIndicators() {
+                // Сначала обновляем статусы всех видимых тест-кейсов
+                document.querySelectorAll('.tree-testcase[data-file-path]').forEach(testCaseEl => {
+                    // Пропускаем скрытые элементы
+                    if (testCaseEl.classList.contains('hidden')) return;
+                    
+                    const fullPath = testCaseEl.getAttribute('data-file-path');
+                    if (!fullPath) return;
+                    
+                    // Находим относительный путь
+                    let relativePath = null;
+                    for (const [relPath, fullPathValue] of Object.entries(filePathMap)) {
+                        if (fullPathValue === fullPath) {
+                            relativePath = relPath;
+                            break;
+                        }
+                    }
+                    if (!relativePath && testCasesData[fullPath]) {
+                        relativePath = fullPath;
+                    }
+                    
+                    if (!relativePath || !testCasesData[relativePath]) return;
+                    
+                    const testCase = testCasesData[relativePath];
+                    const status = calculateTestCaseStatus(testCase);
+                    
+                    // Обновляем индикатор
+                    const indicator = testCaseEl.querySelector('.tree-status-indicator');
+                    if (indicator) {
+                        indicator.className = 'tree-status-indicator';
+                        if (status) {
+                            indicator.classList.add('status-' + status);
+                        }
+                    }
+                });
+                
+                // Затем обновляем статусы папок (снизу вверх, чтобы транслировать failed)
+                const allFolders = Array.from(document.querySelectorAll('.tree-folder')).reverse();
+                
+                allFolders.forEach(folderEl => {
+                    const folderPath = folderEl.querySelector('.tree-folder-header')?.getAttribute('data-path');
+                    if (folderPath === null) return;
+                    
+                    let hasFailed = false;
+                    let allPassed = true;
+                    let hasAnyChild = false;
+                    
+                    // Проверяем все дочерние элементы (тест-кейсы и подпапки)
+                    const childrenContainer = folderEl.querySelector('.tree-folder-children');
+                    if (childrenContainer) {
+                        const childTestCases = childrenContainer.querySelectorAll('.tree-testcase[data-file-path]');
+                        const childFolders = childrenContainer.querySelectorAll('.tree-folder');
+                        
+                        // Проверяем только видимые тест-кейсы
+                        childTestCases.forEach(testCaseEl => {
+                            // Пропускаем скрытые элементы
+                            if (testCaseEl.classList.contains('hidden')) return;
+                            
+                            const fullPath = testCaseEl.getAttribute('data-file-path');
+                            if (!fullPath) return;
+                            
+                            let relativePath = null;
+                            for (const [relPath, fullPathValue] of Object.entries(filePathMap)) {
+                                if (fullPathValue === fullPath) {
+                                    relativePath = relPath;
+                                    break;
+                                }
+                            }
+                            if (!relativePath && testCasesData[fullPath]) {
+                                relativePath = fullPath;
+                            }
+                            
+                            if (relativePath && testCasesData[relativePath]) {
+                                const status = calculateTestCaseStatus(testCasesData[relativePath]);
+                                if (status === 'failed') {
+                                    hasFailed = true;
+                                    allPassed = false;
+                                    hasAnyChild = true;
+                                } else if (status === 'passed') {
+                                    hasAnyChild = true;
+                                } else if (status === null || status === 'skipped') {
+                                    // Если тест-кейс без статуса или skipped - папка не может быть passed
+                                    allPassed = false;
+                                    // skipped не транслируется на папки
+                                }
+                            }
+                        });
+                        
+                        // Проверяем только видимые подпапки (failed транслируется вверх, passed транслируется вверх, skipped - нет)
+                        childFolders.forEach(childFolderEl => {
+                            // Пропускаем скрытые папки
+                            if (childFolderEl.classList.contains('hidden')) return;
+                            
+                            const childIndicator = childFolderEl.querySelector('.tree-status-indicator');
+                            if (childIndicator && childIndicator.classList.contains('status-failed')) {
+                                hasFailed = true;
+                                allPassed = false;
+                                hasAnyChild = true;
+                            } else if (childIndicator && childIndicator.classList.contains('status-passed')) {
+                                hasAnyChild = true;
+                            } else {
+                                // Если подпапка без статуса (нет кружка) или skipped - папка не может быть passed
+                                allPassed = false;
+                            }
+                        });
+                    }
+                    
+                    // Обновляем индикатор папки
+                    const indicator = folderEl.querySelector('.tree-status-indicator');
+                    if (indicator) {
+                        indicator.className = 'tree-status-indicator';
+                        if (hasFailed) {
+                            indicator.classList.add('status-failed');
+                        } else if (allPassed && hasAnyChild) {
+                            indicator.classList.add('status-passed');
+                        }
+                        // Иначе папка без кружка (есть тест-кейсы без статуса или skipped, или нет видимых детей)
+                    }
+                });
+            }
+            
             // Функция фильтрации дерева
             function filterTree() {
                 const selectedAuthor = authorSelect.value;
@@ -1929,6 +2204,7 @@ export class TestCaseRunnerProvider {
                         el.classList.remove('hidden');
                     });
                     updateStats();
+                    updateTreeStatusIndicators();
                     return;
                 }
                 
@@ -2005,6 +2281,7 @@ export class TestCaseRunnerProvider {
                 
                 // Обновляем статистику после фильтрации
                 updateStats();
+                updateTreeStatusIndicators();
             }
             
             // Добавляем обработчики для всех фильтров
@@ -2042,14 +2319,17 @@ export class TestCaseRunnerProvider {
             // Вызываем после небольшой задержки, чтобы убедиться, что DOM готов
             setTimeout(function() {
                 updateStats();
+                updateTreeStatusIndicators();
             }, 100);
             
             // Также вызываем при полной загрузке страницы
             if (document.readyState === 'complete') {
                 updateStats();
+                updateTreeStatusIndicators();
             } else {
                 window.addEventListener('load', function() {
                     updateStats();
+                    updateTreeStatusIndicators();
                 });
             }
             
@@ -2107,6 +2387,11 @@ export class TestCaseRunnerProvider {
             document.addEventListener('click', function(e) {
                 const folderHeader = e.target.closest('.tree-folder-header');
                 if (folderHeader) {
+                    // Убираем выделение со всех элементов при клике на папку
+                    document.querySelectorAll('.tree-testcase, .tree-folder').forEach(el => {
+                        el.classList.remove('selected');
+                    });
+                    
                     const path = folderHeader.getAttribute('data-path');
                     const children = document.querySelector(\`.tree-folder-children[data-path="\${path}"]\`);
                     if (children) {
@@ -2167,9 +2452,9 @@ export class TestCaseRunnerProvider {
                             }
                         }
                         
-                        // Убираем выделение со всех
-                        document.querySelectorAll('.tree-testcase').forEach(tc => {
-                            tc.classList.remove('selected');
+                        // Убираем выделение со всех элементов (тест-кейсов и папок)
+                        document.querySelectorAll('.tree-testcase, .tree-folder').forEach(el => {
+                            el.classList.remove('selected');
                         });
                         // Выделяем текущий
                         testCase.classList.add('selected');
@@ -2233,10 +2518,10 @@ export class TestCaseRunnerProvider {
                             contextMenu.style.left = e.pageX + 'px';
                             contextMenu.style.top = e.pageY + 'px';
                             contextMenu.classList.add('visible');
-                            // Показываем только пункт "Все пройдено" для тест-кейсов
+                            // Показываем все пункты для тест-кейсов
                             document.getElementById('context-menu-all-passed').style.display = 'block';
-                            document.getElementById('context-menu-all-passed-folder').style.display = 'none';
-                            document.getElementById('context-menu-all-skipped').style.display = 'none';
+                            document.getElementById('context-menu-all-skipped').style.display = 'block';
+                            document.getElementById('context-menu-reset-statuses').style.display = 'block';
                         }
                     }
                 } else if (folder) {
@@ -2260,10 +2545,10 @@ export class TestCaseRunnerProvider {
                             contextMenu.style.left = e.pageX + 'px';
                             contextMenu.style.top = e.pageY + 'px';
                             contextMenu.classList.add('visible');
-                            // Показываем пункты для папок
-                            document.getElementById('context-menu-all-passed').style.display = 'none';
-                            document.getElementById('context-menu-all-passed-folder').style.display = 'block';
+                            // Показываем все пункты для папок
+                            document.getElementById('context-menu-all-passed').style.display = 'block';
                             document.getElementById('context-menu-all-skipped').style.display = 'block';
+                            document.getElementById('context-menu-reset-statuses').style.display = 'block';
                         }
                     }
                 } else {
@@ -2276,140 +2561,119 @@ export class TestCaseRunnerProvider {
             });
             
             // Обработчик пункта "Все пройдено"
+            // Обработчик пункта "Пометить все pass" (работает для тест-кейсов и папок)
             const allPassedMenuItem = document.getElementById('context-menu-all-passed');
             if (allPassedMenuItem) {
                 allPassedMenuItem.addEventListener('click', function() {
-                    if (contextMenuTargetPath && testCasesData[contextMenuTargetPath]) {
-                        const testCase = testCasesData[contextMenuTargetPath];
-                        if (testCase.steps && Array.isArray(testCase.steps)) {
-                            // Устанавливаем статус "passed" для всех шагов
+                    // Скрываем контекстное меню
+                    const contextMenu = document.getElementById('context-menu');
+                    if (contextMenu) {
+                        contextMenu.classList.remove('visible');
+                    }
+                    
+                    let testCasePaths = [];
+                    
+                    // Определяем область действия: тест-кейс или папка
+                    if (contextMenuTargetPath) {
+                        // Для одного тест-кейса
+                        testCasePaths = [contextMenuTargetPath];
+                    } else if (contextMenuTargetFolderPath) {
+                        // Для всех тест-кейсов в папке и подпапках (только видимых)
+                        testCasePaths = findAllTestCasesInFolder(contextMenuTargetFolderPath);
+                    }
+                    
+                    if (testCasePaths.length === 0) return;
+                    
+                    let updatedCount = 0;
+                    let stepsCount = 0;
+                    
+                    // Обновляем все шаги во всех найденных тест-кейсах
+                    testCasePaths.forEach(relativePath => {
+                        const testCase = testCasesData[relativePath];
+                        if (testCase && testCase.steps && Array.isArray(testCase.steps)) {
+                            let hasChanges = false;
                             testCase.steps.forEach(step => {
                                 step.status = 'passed';
+                                step.bugLink = '';
+                                step.skipReason = '';
+                                hasChanges = true;
+                                stepsCount++;
                             });
                             
-                            // Помечаем файл как измененный
-                            if (contextMenuTargetPath) {
-                                modifiedFiles.add(contextMenuTargetPath);
-                                document.getElementById('save-selected-btn').disabled = false;
-                                document.getElementById('save-all-btn').disabled = false;
-                            }
-                            
-                            // Если этот тест-кейс сейчас открыт, обновляем его отображение
-                            if (currentFilePath === contextMenuTargetPath) {
-                                loadTestCaseContent(testCase, contextMenuTargetPath);
-                            }
-                            
-                            // Скрываем меню
-                            const contextMenu = document.getElementById('context-menu');
-                            if (contextMenu) {
-                                contextMenu.classList.remove('visible');
-                            }
-                            
-                            showNotification('Все шаги помечены как пройденные', 'success');
-                        }
-                    }
-                });
-            }
-            
-            // Обработчик пункта "Пометить все pass" для папок
-            const allPassedFolderMenuItem = document.getElementById('context-menu-all-passed-folder');
-            if (allPassedFolderMenuItem) {
-                allPassedFolderMenuItem.addEventListener('click', function() {
-                    if (contextMenuTargetFolderPath) {
-                        // Скрываем контекстное меню
-                        const contextMenu = document.getElementById('context-menu');
-                        if (contextMenu) {
-                            contextMenu.classList.remove('visible');
-                        }
-                        
-                        // Находим все тест-кейсы в папке и подпапках
-                        const testCasePaths = findAllTestCasesInFolder(contextMenuTargetFolderPath);
-                        
-                        let updatedCount = 0;
-                        let stepsCount = 0;
-                        
-                        // Обновляем все шаги во всех найденных тест-кейсах
-                        testCasePaths.forEach(relativePath => {
-                            const testCase = testCasesData[relativePath];
-                            if (testCase && testCase.steps && Array.isArray(testCase.steps)) {
-                                let hasChanges = false;
-                                testCase.steps.forEach(step => {
-                                    step.status = 'passed';
-                                    step.bugLink = '';
-                                    step.skipReason = '';
-                                    hasChanges = true;
-                                    stepsCount++;
-                                });
+                            if (hasChanges) {
+                                modifiedFiles.add(relativePath);
+                                updatedCount++;
                                 
-                                if (hasChanges) {
-                                    modifiedFiles.add(relativePath);
-                                    updatedCount++;
-                                    
-                                    // Если этот тест-кейс сейчас открыт, обновляем его отображение
-                                    if (currentFilePath === relativePath) {
-                                        loadTestCaseContent(testCase, relativePath);
-                                    }
+                                // Если этот тест-кейс сейчас открыт, обновляем его отображение
+                                if (currentFilePath === relativePath) {
+                                    loadTestCaseContent(testCase, relativePath);
                                 }
                             }
-                        });
-                        
-                        // Обновляем статистику
-                        updateStats();
-                        
-                        // Включаем кнопки сохранения
-                        document.getElementById('save-selected-btn').disabled = false;
-                        document.getElementById('save-all-btn').disabled = false;
-                        
-                        showNotification(\`Обновлено тест-кейсов: \${updatedCount}, шагов: \${stepsCount}\`, 'success');
-                    }
+                        }
+                    });
+                    
+                    // Обновляем статистику
+                    updateStats();
+                    // Обновляем индикаторы статусов в дереве
+                    updateTreeStatusIndicators();
+                    
+                    // Включаем кнопки сохранения
+                    document.getElementById('save-selected-btn').disabled = false;
+                    document.getElementById('save-all-btn').disabled = false;
+                    
+                    showNotification(\`Обновлено тест-кейсов: \${updatedCount}, шагов: \${stepsCount}\`, 'success');
                 });
             }
             
-            // Обработчик пункта "Пометить все skipped"
+            // Обработчик пункта "Пометить все skipped" (работает для тест-кейсов и папок)
             const allSkippedMenuItem = document.getElementById('context-menu-all-skipped');
             if (allSkippedMenuItem) {
                 allSkippedMenuItem.addEventListener('click', function() {
-                    if (contextMenuTargetFolderPath) {
-                        // Скрываем контекстное меню
-                        const contextMenu = document.getElementById('context-menu');
-                        if (contextMenu) {
-                            contextMenu.classList.remove('visible');
-                        }
-                        
-                        // Показываем модальное окно
-                        const modal = document.getElementById('skip-reason-modal');
-                        const skipReasonInput = document.getElementById('skip-reason-select');
-                        const datalist = document.getElementById('skip-reasons-modal');
-                        
-                        // Заполняем datalist существующими причинами
-                        if (datalist) {
-                            datalist.innerHTML = skipReasons.map(reason => 
-                                '<option value="' + escapeHtml(reason) + '">' + escapeHtml(reason) + '</option>'
-                            ).join('');
-                        }
-                        
+                    // Проверяем, есть ли выбранный тест-кейс или папка
+                    if (!contextMenuTargetPath && !contextMenuTargetFolderPath) return;
+                    
+                    // Скрываем контекстное меню
+                    const contextMenu = document.getElementById('context-menu');
+                    if (contextMenu) {
+                        contextMenu.classList.remove('visible');
+                    }
+                    
+                    // Показываем модальное окно
+                    const modal = document.getElementById('skip-reason-modal');
+                    const skipReasonInput = document.getElementById('skip-reason-select');
+                    const datalist = document.getElementById('skip-reasons-modal');
+                    
+                    // Заполняем datalist существующими причинами
+                    if (datalist) {
+                        datalist.innerHTML = skipReasons.map(reason => 
+                            '<option value="' + escapeHtml(reason) + '">' + escapeHtml(reason) + '</option>'
+                        ).join('');
+                    }
+                    
+                    if (skipReasonInput) {
+                        skipReasonInput.value = '';
+                    }
+                    
+                    if (modal) {
+                        modal.style.display = 'flex';
                         if (skipReasonInput) {
-                            skipReasonInput.value = '';
-                        }
-                        
-                        if (modal) {
-                            modal.style.display = 'flex';
-                            if (skipReasonInput) {
-                                setTimeout(() => skipReasonInput.focus(), 100);
-                            }
+                            setTimeout(() => skipReasonInput.focus(), 100);
                         }
                     }
                 });
             }
             
-            // Функция для поиска всех тест-кейсов в папке и подпапках
+            // Функция для поиска всех тест-кейсов в папке и подпапках (только видимых после фильтрации)
             function findAllTestCasesInFolder(folderPath) {
                 const testCases = [];
                 const folderPathPrefix = folderPath === '' ? '' : folderPath + '/';
                 
                 // Находим все элементы папок и тест-кейсов с нужным путем
                 const allFolders = document.querySelectorAll('.tree-folder-header[data-path]');
-                const allTestCases = document.querySelectorAll('.tree-testcase[data-file-path]');
+                // Находим только видимые тест-кейсы (не скрытые фильтрами)
+                const allTestCases = Array.from(document.querySelectorAll('.tree-testcase[data-file-path]')).filter(el => {
+                    return !el.classList.contains('hidden');
+                });
                 
                 // Собираем пути всех подпапок
                 const subFolderPaths = new Set();
@@ -2422,7 +2686,7 @@ export class TestCaseRunnerProvider {
                     }
                 });
                 
-                // Находим все тест-кейсы в папке и подпапках
+                // Находим все видимые тест-кейсы в папке и подпапках
                 allTestCases.forEach(testCaseEl => {
                     const fullPath = testCaseEl.getAttribute('data-file-path');
                     if (!fullPath) return;
@@ -2512,8 +2776,15 @@ export class TestCaseRunnerProvider {
                         }
                     }
                     
-                    // Находим все тест-кейсы в папке и подпапках
-                    const testCasePaths = findAllTestCasesInFolder(contextMenuTargetFolderPath);
+                    // Определяем область действия: тест-кейс или папка
+                    let testCasePaths = [];
+                    if (contextMenuTargetPath) {
+                        // Для одного тест-кейса
+                        testCasePaths = [contextMenuTargetPath];
+                    } else if (contextMenuTargetFolderPath) {
+                        // Для всех тест-кейсов в папке и подпапках (только видимых)
+                        testCasePaths = findAllTestCasesInFolder(contextMenuTargetFolderPath);
+                    }
                     
                     let updatedCount = 0;
                     let stepsCount = 0;
@@ -2558,12 +2829,115 @@ export class TestCaseRunnerProvider {
                 });
             }
             
+            // Обработчик пункта "Сбросить статусы"
+            const resetStatusesMenuItem = document.getElementById('context-menu-reset-statuses');
+            if (resetStatusesMenuItem) {
+                resetStatusesMenuItem.addEventListener('click', function() {
+                    // Скрываем контекстное меню
+                    const contextMenu = document.getElementById('context-menu');
+                    if (contextMenu) {
+                        contextMenu.classList.remove('visible');
+                    }
+                    
+                    // Показываем модальное окно подтверждения
+                    const resetModal = document.getElementById('reset-statuses-modal');
+                    if (resetModal) {
+                        resetModal.style.display = 'flex';
+                    }
+                });
+            }
+            
+            // Обработчики модального окна сброса статусов
+            const resetStatusesModal = document.getElementById('reset-statuses-modal');
+            const resetStatusesConfirm = document.getElementById('reset-statuses-confirm');
+            const resetStatusesCancel = document.getElementById('reset-statuses-cancel');
+            
+            if (resetStatusesCancel) {
+                resetStatusesCancel.addEventListener('click', function() {
+                    if (resetStatusesModal) {
+                        resetStatusesModal.style.display = 'none';
+                    }
+                });
+            }
+            
+            // Закрытие по клику вне модального окна
+            if (resetStatusesModal) {
+                resetStatusesModal.addEventListener('click', function(e) {
+                    if (e.target === resetStatusesModal) {
+                        resetStatusesModal.style.display = 'none';
+                    }
+                });
+            }
+            
+            if (resetStatusesConfirm) {
+                resetStatusesConfirm.addEventListener('click', function() {
+                    // Определяем область действия: тест-кейс или папка
+                    let testCasePaths = [];
+                    
+                    if (contextMenuTargetPath) {
+                        // Сброс для одного тест-кейса
+                        testCasePaths = [contextMenuTargetPath];
+                    } else if (contextMenuTargetFolderPath) {
+                        // Сброс для всех тест-кейсов в папке и подпапках (только видимых)
+                        testCasePaths = findAllTestCasesInFolder(contextMenuTargetFolderPath);
+                    }
+                    
+                    let updatedCount = 0;
+                    let stepsCount = 0;
+                    
+                    // Очищаем статусы, bugLink и skipReason во всех найденных тест-кейсах
+                    testCasePaths.forEach(relativePath => {
+                        const testCase = testCasesData[relativePath];
+                        if (testCase && testCase.steps && Array.isArray(testCase.steps)) {
+                            let hasChanges = false;
+                            testCase.steps.forEach(step => {
+                                step.status = '';
+                                step.bugLink = '';
+                                step.skipReason = '';
+                                hasChanges = true;
+                                stepsCount++;
+                            });
+                            
+                            if (hasChanges) {
+                                modifiedFiles.add(relativePath);
+                                updatedCount++;
+                                
+                                // Если этот тест-кейс сейчас открыт, обновляем его отображение
+                                if (currentFilePath === relativePath) {
+                                    loadTestCaseContent(testCase, relativePath);
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Обновляем статистику
+                    updateStats();
+                    // Обновляем индикаторы статусов в дереве
+                    updateTreeStatusIndicators();
+                    
+                    // Включаем кнопки сохранения
+                    document.getElementById('save-selected-btn').disabled = false;
+                    document.getElementById('save-all-btn').disabled = false;
+                    
+                    // Закрываем модальное окно
+                    if (resetStatusesModal) {
+                        resetStatusesModal.style.display = 'none';
+                    }
+                    
+                    showNotification(\`Сброшено статусов в тест-кейсах: \${updatedCount}, шагов: \${stepsCount}\`, 'success');
+                });
+            }
+            
             // Закрытие модального окна по Escape
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape') {
-                    const modal = document.getElementById('skip-reason-modal');
-                    if (modal && modal.style.display === 'flex') {
-                        modal.style.display = 'none';
+                    const skipModal = document.getElementById('skip-reason-modal');
+                    const resetModal = document.getElementById('reset-statuses-modal');
+                    if (skipModal && skipModal.style.display === 'flex') {
+                        skipModal.style.display = 'none';
+                    }
+                    if (resetModal && resetModal.style.display === 'flex') {
+                        resetModal.style.display = 'none';
                     }
                 }
             });
@@ -3014,6 +3388,8 @@ export class TestCaseRunnerProvider {
                                 
                                 // Обновляем статистику после изменения статуса
                                 updateStats();
+                                // Обновляем индикаторы статусов в дереве
+                                updateTreeStatusIndicators();
                             }
                         });
                     });
@@ -3544,8 +3920,21 @@ export class TestCaseRunnerProvider {
                 await this.autoSaveFiles(result.filesToSave, testCases, serverPort);
             }
             
-            // 4. Сохранение файла
-            const htmlPath = path.join(workspacePath, 'test-case-runner.html');
+            // 4. Создание структуры папок и сохранение файла
+            const releasesDir = path.join(workspacePath, '_releases');
+            const branchDir = path.join(releasesDir, branch);
+            const htmlFileName = `runner_by_${branch}.html`;
+            const htmlPath = path.join(branchDir, htmlFileName);
+            
+            // Создаем папку _releases, если её нет
+            if (!fs.existsSync(releasesDir)) {
+                fs.mkdirSync(releasesDir, { recursive: true });
+            }
+            
+            // Создаем папку с названием ветки, если её нет
+            if (!fs.existsSync(branchDir)) {
+                fs.mkdirSync(branchDir, { recursive: true });
+            }
             
             try {
                 fs.writeFileSync(htmlPath, html, 'utf8');
@@ -3586,4 +3975,5 @@ export class TestCaseRunnerProvider {
     }
 
 }
+
 
