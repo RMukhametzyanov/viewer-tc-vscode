@@ -165,12 +165,6 @@ export async function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('testCaseViewer.openRunner', () => {
-            runnerProvider.openRunner();
-        })
-    );
-
-    context.subscriptions.push(
         vscode.commands.registerCommand('testCaseViewer.createStandaloneHtml', () => {
             runnerProvider.createStandaloneHtml();
         })

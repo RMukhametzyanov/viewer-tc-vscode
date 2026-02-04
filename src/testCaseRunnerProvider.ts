@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { TestCaseRenderer } from './testCaseRenderer';
 import { SettingsProvider } from './settingsProvider';
 
 interface TestCase {
@@ -56,9 +55,7 @@ interface TestCaseNode {
 }
 
 export class TestCaseRunnerProvider {
-    private _panel: vscode.WebviewPanel | undefined;
     private _testCases: Map<string, TestCaseNode> = new Map();
-    private _currentSelectedPath: string | undefined;
     private _server: any = null;
     private _serverPort: number = 0;
     private _workspacePath: string = '';
@@ -448,7 +445,7 @@ export class TestCaseRunnerProvider {
                 `;
             } else {
                 const indent = level * 5; // Отступ 5px на каждый уровень
-                const isSelected = this._currentSelectedPath === node.filePath;
+                const isSelected = false; // Выбор определяется в браузере через JavaScript
                 const author = node.data?.author || '';
                 const owner = node.data?.owner || '';
                 const reviewer = node.data?.reviewer || '';
@@ -482,640 +479,6 @@ export class TestCaseRunnerProvider {
     /**
      * Генерация HTML для раннера
      */
-    private getRunnerHtml(testCases: Map<string, TestCaseNode>, selectedTestCase?: TestCase): string {
-        const rootNode = testCases.get('');
-        const treeHtml = rootNode ? this.renderTreeHtml(rootNode.children) : '<div>Тест-кейсы не найдены</div>';
-        
-        const testers = SettingsProvider.getTesters();
-        const tags = SettingsProvider.getTags();
-        const contentHtml = selectedTestCase 
-            ? TestCaseRenderer.render(selectedTestCase, undefined, testers, tags)
-            : '<div class="empty-content">Выберите тест-кейс из дерева</div>';
-
-        return `<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Test Case Runner</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: var(--vscode-font-family);
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-editor-background);
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-        }
-        
-        .runner-header {
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--vscode-panel-border);
-            background-color: var(--vscode-editor-background);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-shrink: 0;
-        }
-        
-        .runner-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--vscode-foreground);
-        }
-        
-        .runner-branch {
-            font-size: 12px;
-            color: var(--vscode-descriptionForeground);
-        }
-        
-        .runner-content {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-        
-        .runner-tree {
-            width: 300px;
-            border-right: 1px solid var(--vscode-panel-border);
-            background-color: var(--vscode-sideBar-background);
-            overflow-y: auto;
-            flex-shrink: 0;
-        }
-        
-        .runner-main {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px;
-        }
-        
-        .tree-folder {
-            user-select: none;
-        }
-        
-        .tree-folder-header {
-            display: flex;
-            align-items: center;
-            padding: 4px 8px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        
-        .tree-folder-header:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-        
-        .tree-folder-icon {
-            margin-right: 6px;
-            font-size: 14px;
-        }
-        
-        .tree-folder-name {
-            flex: 1;
-            font-size: 13px;
-            color: var(--vscode-foreground);
-        }
-        
-        .tree-folder-toggle {
-            font-size: 10px;
-            color: var(--vscode-descriptionForeground);
-            transition: transform 0.2s;
-        }
-        
-        .tree-folder-header.collapsed .tree-folder-toggle {
-            transform: rotate(-90deg);
-        }
-        
-        .tree-folder-children {
-            display: block;
-        }
-        
-        .tree-folder-children.collapsed {
-            display: none;
-        }
-        
-        .tree-testcase {
-            display: flex;
-            align-items: center;
-            padding: 4px 8px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            user-select: none;
-        }
-        
-        .tree-testcase:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-        
-        .tree-testcase.selected {
-            background-color: var(--vscode-list-activeSelectionBackground);
-            color: var(--vscode-list-activeSelectionForeground);
-        }
-        
-        .tree-testcase-icon {
-            margin-right: 4px;
-            font-size: 12px;
-        }
-        
-        .tree-testcase-name {
-            flex: 1;
-            font-size: 12px;
-            color: inherit;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .empty-content {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: var(--vscode-descriptionForeground);
-            font-size: 14px;
-        }
-    </style>
-</head>
-<body>
-    <div class="runner-header">
-        <div class="runner-title">Test Case Runner</div>
-        <div class="runner-branch" id="branch-info">Ветка: загрузка...</div>
-    </div>
-    <div class="runner-content">
-        <div class="runner-tree" id="test-case-tree">
-            ${treeHtml}
-        </div>
-        <div class="runner-main" id="test-case-content">
-            ${contentHtml}
-        </div>
-    </div>
-    <script>
-        (function() {
-            const vscode = acquireVsCodeApi();
-            let currentFilePath = null;
-            
-            // Сохраняем оригинальный postMessage
-            const originalPostMessage = vscode.postMessage;
-            
-            // Перехватываем postMessage и добавляем filePath
-            vscode.postMessage = function(message) {
-                if (message && typeof message === 'object' && currentFilePath) {
-                    // Добавляем filePath ко всем сообщениям от рендерера
-                    if (message.command && message.command !== 'loadTestCase' && message.command !== 'focusState') {
-                        message.filePath = currentFilePath;
-                    }
-                }
-                return originalPostMessage.call(vscode, message);
-            };
-            
-            // Обработка клика на папку (сворачивание/разворачивание)
-            document.addEventListener('click', function(e) {
-                const folderHeader = e.target.closest('.tree-folder-header');
-                if (folderHeader) {
-                    const path = folderHeader.getAttribute('data-path');
-                    const children = document.querySelector(\`.tree-folder-children[data-path="\${path}"]\`);
-                    if (children) {
-                        const isCollapsed = children.classList.contains('collapsed');
-                        if (isCollapsed) {
-                            children.classList.remove('collapsed');
-                            folderHeader.classList.remove('collapsed');
-                        } else {
-                            children.classList.add('collapsed');
-                            folderHeader.classList.add('collapsed');
-                        }
-                    }
-                }
-            });
-            
-            // Обработка клика на тест-кейс
-            document.addEventListener('click', function(e) {
-                const testCase = e.target.closest('.tree-testcase');
-                if (testCase) {
-                    const filePath = testCase.getAttribute('data-file-path');
-                    if (filePath) {
-                        // Убираем выделение со всех
-                        document.querySelectorAll('.tree-testcase').forEach(tc => {
-                            tc.classList.remove('selected');
-                        });
-                        // Выделяем текущий
-                        testCase.classList.add('selected');
-                        
-                        // Сохраняем текущий путь
-                        currentFilePath = filePath;
-                        
-                        // Запрашиваем содержимое тест-кейса
-                        vscode.postMessage({
-                            command: 'loadTestCase',
-                            filePath: filePath
-                        });
-                    }
-                }
-            });
-            
-            // Обработка сообщений от расширения
-            window.addEventListener('message', event => {
-                const message = event.data;
-                switch (message.command) {
-                    case 'updateContent':
-                        const contentDiv = document.getElementById('test-case-content');
-                        if (contentDiv) {
-                            contentDiv.innerHTML = message.html;
-                            // Обновляем currentFilePath если он был передан
-                            if (message.filePath) {
-                                currentFilePath = message.filePath;
-                            }
-                        }
-                        break;
-                    case 'updateBranch':
-                        const branchDiv = document.getElementById('branch-info');
-                        if (branchDiv) {
-                            branchDiv.textContent = \`Ветка: \${message.branch}\`;
-                        }
-                        break;
-                }
-            });
-        })();
-    </script>
-</body>
-</html>`;
-    }
-
-    /**
-     * Обновить поле тест-кейса
-     */
-    private async updateTestCaseField(filePath: string, field: string, value: string): Promise<void> {
-        try {
-            const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-            const content = JSON.parse(document.getText());
-            
-            content[field] = value;
-            content.updatedAt = Date.now();
-            
-            const newContent = JSON.stringify(content, null, 4);
-            const edit = new vscode.WorkspaceEdit();
-            const fullRange = new vscode.Range(
-                document.positionAt(0),
-                document.positionAt(document.getText().length)
-            );
-            edit.replace(document.uri, fullRange, newContent);
-            
-            await vscode.workspace.applyEdit(edit);
-            await document.save();
-            
-            // Обновляем данные в дереве
-            this._testCases.forEach(node => {
-                if (node.type === 'testcase' && node.filePath === filePath) {
-                    node.data = content;
-                }
-            });
-        } catch (error) {
-            vscode.window.showErrorMessage(`Ошибка при обновлении тест-кейса: ${error}`);
-        }
-    }
-
-    /**
-     * Обновить содержимое текущего тест-кейса в панели
-     */
-    private async refreshCurrentTestCase(filePath: string): Promise<void> {
-        if (this._currentSelectedPath === filePath && this._panel) {
-            try {
-                const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-                const content = JSON.parse(document.getText());
-                const testers = SettingsProvider.getTesters();
-                const tags = SettingsProvider.getTags();
-                const html = TestCaseRenderer.render(content, undefined, testers, tags);
-                this._panel.webview.postMessage({
-                    command: 'updateContent',
-                    html: html,
-                    filePath: filePath
-                });
-            } catch (error) {
-                console.error(`Ошибка при обновлении содержимого: ${error}`);
-            }
-        }
-    }
-
-    /**
-     * Обновить статус шага тест-кейса
-     */
-    private async updateStepStatus(filePath: string, stepId: string, field: string, value: string): Promise<void> {
-        try {
-            const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-            const content = JSON.parse(document.getText());
-            
-            if (content.steps && Array.isArray(content.steps)) {
-                const step = content.steps.find((s: any) => s.id === stepId);
-                if (step) {
-                    step[field] = value;
-                    content.updatedAt = Date.now();
-                    
-                    const newContent = JSON.stringify(content, null, 4);
-                    const edit = new vscode.WorkspaceEdit();
-                    const fullRange = new vscode.Range(
-                        document.positionAt(0),
-                        document.positionAt(document.getText().length)
-                    );
-                    edit.replace(document.uri, fullRange, newContent);
-                    
-                    await vscode.workspace.applyEdit(edit);
-                    await document.save();
-                    
-                    // Обновляем данные в дереве
-                    this._testCases.forEach(node => {
-                        if (node.type === 'testcase' && node.filePath === filePath) {
-                            node.data = content;
-                        }
-                    });
-                }
-            }
-        } catch (error) {
-            vscode.window.showErrorMessage(`Ошибка при обновлении шага: ${error}`);
-        }
-    }
-
-    /**
-     * Обработка действий со шагами
-     */
-    private async handleStepAction(filePath: string, action: string, stepId: string): Promise<void> {
-        try {
-            const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-            const content = JSON.parse(document.getText());
-            
-            if (!content.steps || !Array.isArray(content.steps)) {
-                return;
-            }
-
-            const stepIndex = content.steps.findIndex((s: any) => s.id === stepId);
-            if (stepIndex === -1) {
-                return;
-            }
-
-            let newSteps = [...content.steps];
-
-            switch (action) {
-                case 'move-up':
-                    if (stepIndex > 0) {
-                        [newSteps[stepIndex - 1], newSteps[stepIndex]] = [newSteps[stepIndex], newSteps[stepIndex - 1]];
-                    }
-                    break;
-                case 'move-down':
-                    if (stepIndex < newSteps.length - 1) {
-                        [newSteps[stepIndex], newSteps[stepIndex + 1]] = [newSteps[stepIndex + 1], newSteps[stepIndex]];
-                    }
-                    break;
-                case 'add-above': {
-                    const newStep: TestStep = {
-                        id: Date.now().toString(),
-                        name: `Шаг ${newSteps.length + 1}`,
-                        description: '',
-                        expectedResult: '',
-                        status: '',
-                        bugLink: '',
-                        skipReason: '',
-                        attachments: ''
-                    };
-                    newSteps.splice(stepIndex, 0, newStep);
-                    break;
-                }
-                case 'add-below': {
-                    const newStep: TestStep = {
-                        id: Date.now().toString(),
-                        name: `Шаг ${newSteps.length + 1}`,
-                        description: '',
-                        expectedResult: '',
-                        status: '',
-                        bugLink: '',
-                        skipReason: '',
-                        attachments: ''
-                    };
-                    newSteps.splice(stepIndex + 1, 0, newStep);
-                    break;
-                }
-                case 'delete':
-                    newSteps.splice(stepIndex, 1);
-                    break;
-            }
-
-            content.steps = newSteps;
-            content.updatedAt = Date.now();
-
-            const newContent = JSON.stringify(content, null, 4);
-            const edit = new vscode.WorkspaceEdit();
-            const fullRange = new vscode.Range(
-                document.positionAt(0),
-                document.positionAt(document.getText().length)
-            );
-            edit.replace(document.uri, fullRange, newContent);
-            
-            await vscode.workspace.applyEdit(edit);
-            await document.save();
-            
-            // Обновляем данные в дереве
-            this._testCases.forEach(node => {
-                if (node.type === 'testcase' && node.filePath === filePath) {
-                    node.data = content;
-                }
-            });
-        } catch (error) {
-            vscode.window.showErrorMessage(`Ошибка при выполнении действия с шагом: ${error}`);
-        }
-    }
-
-    /**
-     * Генерация ID для review
-     */
-    private generateReviewId(): string {
-        return 'rev-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-    }
-
-    /**
-     * Добавить review к шагу
-     */
-    private async addReview(filePath: string, stepId: string, comment: string): Promise<void> {
-        try {
-            const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-            const content = JSON.parse(document.getText());
-            
-            // Инициализируем notes (поддерживаем оба формата)
-            if (!content.notes) {
-                content.notes = { reviews: [] };
-            }
-            // Если notes - массив (старый формат), конвертируем в объект
-            if (Array.isArray(content.notes)) {
-                content.notes = { reviews: content.notes };
-            }
-            if (!content.notes.reviews) {
-                content.notes.reviews = [];
-            }
-            
-            // Находим номер шага
-            const stepIndex = content.steps.findIndex((s: any) => s.id === stepId);
-            const stepNumber = stepIndex >= 0 ? stepIndex + 1 : 1;
-            
-            // Получаем текущего пользователя
-            const testers = SettingsProvider.getTesters();
-            const currentUser = testers.length > 0 ? testers[0] : 'Unknown';
-            
-            // Создаем review
-            const review = {
-                id: this.generateReviewId(),
-                stepId: stepId,
-                stepNumber: stepNumber,
-                author: currentUser,
-                createdAt: Date.now(),
-                comment: comment,
-                status: 'open'
-            };
-            
-            content.notes.reviews.push(review);
-            content.updatedAt = Date.now();
-            
-            const newContent = JSON.stringify(content, null, 4);
-            const edit = new vscode.WorkspaceEdit();
-            const fullRange = new vscode.Range(
-                document.positionAt(0),
-                document.positionAt(document.getText().length)
-            );
-            edit.replace(document.uri, fullRange, newContent);
-            await vscode.workspace.applyEdit(edit);
-            await document.save();
-            
-            // Обновляем данные в дереве
-            this._testCases.forEach(node => {
-                if (node.type === 'testcase' && node.filePath === filePath) {
-                    node.data = content;
-                }
-            });
-        } catch (error) {
-            vscode.window.showErrorMessage(`Ошибка при добавлении комментария: ${error}`);
-        }
-    }
-
-    /**
-     * Обновить статус review
-     */
-    private async updateReviewStatus(filePath: string, reviewId: string, status: string): Promise<void> {
-        try {
-            const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-            const content = JSON.parse(document.getText());
-            
-            // Поддерживаем оба формата
-            let reviews: any[] = [];
-            if (Array.isArray(content.notes)) {
-                reviews = content.notes;
-            } else if (content.notes && content.notes.reviews && Array.isArray(content.notes.reviews)) {
-                reviews = content.notes.reviews;
-            } else {
-                return;
-            }
-            
-            const review = reviews.find((r: any) => r.id === reviewId);
-            if (!review) {
-                return;
-            }
-            
-            review.status = status;
-            
-            if (status === 'resolved' || status === 'fixed') {
-                review.resolvedAt = Date.now();
-                const testers = SettingsProvider.getTesters();
-                review.resolvedBy = testers.length > 0 ? testers[0] : 'Unknown';
-            } else {
-                review.resolvedAt = undefined;
-                review.resolvedBy = undefined;
-            }
-            
-            // Обновляем структуру notes
-            if (Array.isArray(content.notes)) {
-                content.notes = reviews;
-            } else {
-                content.notes.reviews = reviews;
-            }
-            
-            content.updatedAt = Date.now();
-            
-            const newContent = JSON.stringify(content, null, 4);
-            const edit = new vscode.WorkspaceEdit();
-            const fullRange = new vscode.Range(
-                document.positionAt(0),
-                document.positionAt(document.getText().length)
-            );
-            edit.replace(document.uri, fullRange, newContent);
-            await vscode.workspace.applyEdit(edit);
-            await document.save();
-            
-            // Обновляем данные в дереве
-            this._testCases.forEach(node => {
-                if (node.type === 'testcase' && node.filePath === filePath) {
-                    node.data = content;
-                }
-            });
-        } catch (error) {
-            vscode.window.showErrorMessage(`Ошибка при обновлении статуса комментария: ${error}`);
-        }
-    }
-
-    /**
-     * Удалить review
-     */
-    private async deleteReview(filePath: string, reviewId: string): Promise<void> {
-        try {
-            const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-            const content = JSON.parse(document.getText());
-            
-            // Поддерживаем оба формата
-            let reviews: any[] = [];
-            if (Array.isArray(content.notes)) {
-                reviews = content.notes;
-            } else if (content.notes && content.notes.reviews && Array.isArray(content.notes.reviews)) {
-                reviews = content.notes.reviews;
-            } else {
-                return;
-            }
-            
-            const reviewIndex = reviews.findIndex((r: any) => String(r.id) === String(reviewId));
-            if (reviewIndex === -1) {
-                return;
-            }
-            
-            let newReviews = [...reviews];
-            newReviews.splice(reviewIndex, 1);
-            
-            // Обновляем структуру notes
-            if (Array.isArray(content.notes)) {
-                content.notes = newReviews;
-            } else {
-                content.notes.reviews = newReviews;
-            }
-            content.updatedAt = Date.now();
-            
-            const newContent = JSON.stringify(content, null, 4);
-            const edit = new vscode.WorkspaceEdit();
-            const fullRange = new vscode.Range(
-                document.positionAt(0),
-                document.positionAt(document.getText().length)
-            );
-            edit.replace(document.uri, fullRange, newContent);
-            await vscode.workspace.applyEdit(edit);
-            await document.save();
-            
-            // Обновляем данные в дереве
-            this._testCases.forEach(node => {
-                if (node.type === 'testcase' && node.filePath === filePath) {
-                    node.data = content;
-                }
-            });
-        } catch (error) {
-            vscode.window.showErrorMessage(`Ошибка при удалении комментария: ${error}`);
-        }
-    }
 
     /**
      * Генерация автономного HTML файла для браузера
@@ -1405,8 +768,8 @@ export class TestCaseRunnerProvider {
             width: 24px;
             height: 24px;
             padding: 0;
-            border: 1px solid var(--border-color);
-            border-radius: 3px;
+            border: none;
+            border-radius: 4px;
             cursor: pointer;
             transition: all 0.2s;
             background-color: transparent;
@@ -1427,49 +790,30 @@ export class TestCaseRunnerProvider {
             transform: scale(1.1);
         }
         
-        .status-btn-icon.active {
-            border-width: 2px;
-        }
-        
-        /* Незаполненное состояние (по умолчанию) */
+        /* Неактивное состояние - только цветной контур */
         .status-btn-icon.passed {
             background-color: transparent;
-            border-color: var(--border-color);
-            color: var(--text-secondary);
         }
         
         .status-btn-icon.failed {
             background-color: transparent;
-            border-color: var(--border-color);
-            color: var(--text-secondary);
         }
         
         .status-btn-icon.skipped {
             background-color: transparent;
-            border-color: var(--border-color);
-            color: var(--text-secondary);
         }
         
-        /* Заполненное состояние (active) */
+        /* Активное состояние - цветной фон с белым контуром иконки */
         .status-btn-icon.passed.active {
             background-color: #28a745;
-            border-color: #28a745;
-            color: #ffffff;
-            box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3);
         }
         
         .status-btn-icon.failed.active {
             background-color: #dc3545;
-            border-color: #dc3545;
-            color: #ffffff;
-            box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.3);
         }
         
         .status-btn-icon.skipped.active {
-            background-color: #ff9800;
-            border-color: #ff9800;
-            color: #ffffff;
-            box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.3);
+            background-color: #9e9e9e;
         }
         
         .test-case-meta {
@@ -1794,7 +1138,7 @@ export class TestCaseRunnerProvider {
         }
         
         .step-reason-editable input.required-field:valid {
-            border-color: #28a745;
+            border-color: var(--border-color);
         }
         
         .step-expected-box {
@@ -2367,7 +1711,7 @@ export class TestCaseRunnerProvider {
             });
             
             // Обработка клика на тест-кейс
-            document.addEventListener('click', function(e) {
+            document.addEventListener('click', async function(e) {
                 const testCase = e.target.closest('.tree-testcase');
                 if (testCase) {
                     const fullPath = testCase.getAttribute('data-file-path');
@@ -2385,6 +1729,32 @@ export class TestCaseRunnerProvider {
                     }
                     
                     if (relativePath && testCasesData[relativePath]) {
+                        // Если есть текущий открытый файл, проверяем валидацию и сохраняем
+                        if (currentFilePath && currentFilePath !== relativePath) {
+                            const currentContent = testCasesData[currentFilePath];
+                            if (currentContent) {
+                                // Валидация обязательных полей
+                                const validation = validateFailedSteps(currentContent);
+                                if (!validation.valid) {
+                                    showNotification(validation.message, 'error');
+                                    return; // Не переключаемся, если валидация не прошла
+                                }
+                                
+                                // Если есть изменения, сохраняем автоматически
+                                if (modifiedFiles.has(currentFilePath)) {
+                                    currentContent.updatedAt = Date.now();
+                                    const success = await saveFile(currentFilePath, currentContent);
+                                    if (success) {
+                                        modifiedFiles.delete(currentFilePath);
+                                        showNotification('Файл автоматически сохранен: ' + currentFilePath, 'success');
+                                    } else {
+                                        showNotification('Ошибка при автосохранении. Переключение отменено.', 'error');
+                                        return; // Не переключаемся, если не удалось сохранить
+                                    }
+                                }
+                            }
+                        }
+                        
                         // Убираем выделение со всех
                         document.querySelectorAll('.tree-testcase').forEach(tc => {
                             tc.classList.remove('selected');
@@ -2620,10 +1990,16 @@ export class TestCaseRunnerProvider {
                     
                     // Функция для генерации SVG иконки
                     function getStatusIcon(type, isActive) {
-                        // Для незаполненных иконок: fill="none", stroke серый
-                        // Для заполненных иконок: fill цветной, stroke белый для лучшей видимости
-                        const fillColor = isActive ? (type === 'passed' ? '#28a745' : type === 'failed' ? '#dc3545' : '#ff9800') : 'none';
-                        const strokeColor = isActive ? '#ffffff' : 'currentColor';
+                        // Для неактивных иконок: fill="none", stroke цветной (зеленый/красный/серый) - только контур
+                        // Для активных иконок: fill="none", stroke белый - белый контур на цветном фоне кнопки
+                        const fillColor = 'none';
+                        let strokeColor;
+                        if (isActive) {
+                            strokeColor = '#ffffff'; // Белый контур для активных
+                        } else {
+                            // Цветной контур для неактивных
+                            strokeColor = type === 'passed' ? '#28a745' : type === 'failed' ? '#dc3545' : '#9e9e9e';
+                        }
                         const strokeWidth = '2';
                         
                         if (type === 'passed') {
@@ -2638,13 +2014,11 @@ export class TestCaseRunnerProvider {
                     
                     stepsDiv.innerHTML = testCase.steps.map((step, index) => {
                         const status = step.status || 'pending';
-                        const statusLabel = status === 'skipped' ? 'ПРОПУЩЕН' : status === 'passed' ? 'ПРОЙДЕН' : status === 'failed' ? 'ПРОВАЛЕН' : '';
                         return \`
                         <div style="margin-bottom: 10px; padding: 8px; background-color: var(--bg-secondary); border-radius: 3px; border-left: 2px solid var(--accent-color);">
                             <div class="step-header-runner">
                                 <div class="step-number-runner">
                                     ШАГ \${index + 1}
-                                    \${statusLabel ? \`<span class="step-status-badge \${status}">\${statusLabel}</span>\` : ''}
                                 </div>
                                 <div class="status-buttons" style="display: flex; gap: 4px; align-items: center;">
                                     <button class="status-btn-icon passed \${status === 'passed' ? 'active' : ''}" data-step-id="\${step.id}" data-status="passed" title="Passed">\${getStatusIcon('passed', status === 'passed')}</button>
@@ -2653,17 +2027,17 @@ export class TestCaseRunnerProvider {
                                 </div>
                             </div>
                             <textarea 
-                                class="step-description" 
+                                class="step-description auto-resize" 
                                 data-step-id="\${step.id}" 
-                                style="width: 100%; min-height: 45px; padding: 6px; border: 1px solid var(--border-color); border-radius: 2px; font-family: inherit; font-size: 11px; margin-bottom: 8px; background-color: var(--bg-primary); color: var(--text-primary);"
+                                style="width: 100%; min-height: 45px; padding: 6px; border: 1px solid var(--border-color); border-radius: 2px; font-family: inherit; font-size: 11px; margin-bottom: 8px; background-color: var(--bg-primary); color: var(--text-primary); resize: none; overflow: hidden;"
                                 placeholder="Описание шага"
                             >\${escapeHtml(step.description || '')}</textarea>
                             <div class="step-expected-box">
                                 <div class="step-expected-label">ОЖИДАЕМЫЙ РЕЗУЛЬТАТ:</div>
                                 <textarea 
-                                    class="step-expected" 
+                                    class="step-expected auto-resize" 
                                     data-step-id="\${step.id}" 
-                                    style="width: 100%; min-height: 45px; padding: 6px; border: none; border-radius: 0; font-family: inherit; font-size: 11px; background-color: transparent; color: var(--text-primary); resize: vertical;"
+                                    style="width: 100%; min-height: 45px; padding: 6px; border: none; border-radius: 0; font-family: inherit; font-size: 11px; background-color: transparent; color: var(--text-primary); resize: none; overflow: hidden;"
                                     placeholder="Ожидаемый результат"
                                 >\${escapeHtml(step.expectedResult || '')}</textarea>
                             </div>
@@ -2696,8 +2070,27 @@ export class TestCaseRunnerProvider {
                     \`;
                     }).join('');
                     
+                    // Функция для автоматического изменения высоты textarea
+                    function autoResizeTextarea(textarea) {
+                        // Сбрасываем высоту, чтобы получить правильный scrollHeight
+                        textarea.style.height = 'auto';
+                        // Устанавливаем высоту на основе содержимого
+                        textarea.style.height = textarea.scrollHeight + 'px';
+                    }
+                    
+                    // Применяем автоизменение высоты ко всем textarea при загрузке
+                    document.querySelectorAll('.auto-resize').forEach(textarea => {
+                        autoResizeTextarea(textarea);
+                    });
+                    
                     // Добавляем обработчики изменений для textarea
                     document.querySelectorAll('.step-description, .step-expected').forEach(el => {
+                        // Автоматическое изменение высоты при вводе
+                        el.addEventListener('input', function() {
+                            autoResizeTextarea(this);
+                        });
+                        
+                        // Сохранение изменений
                         el.addEventListener('change', function() {
                             const stepId = this.getAttribute('data-step-id');
                             const field = this.classList.contains('step-description') ? 'description' : 'expectedResult';
@@ -2714,28 +2107,6 @@ export class TestCaseRunnerProvider {
                             }
                         });
                     });
-                    
-                    // Функция для обновления бейджа статуса
-                    function updateStatusBadge(stepCard, status) {
-                        const stepNumberDiv = stepCard.querySelector('.step-number-runner');
-                        if (stepNumberDiv) {
-                            const statusLabel = status === 'skipped' ? 'ПРОПУЩЕН' : status === 'passed' ? 'ПРОЙДЕН' : status === 'failed' ? 'ПРОВАЛЕН' : '';
-                            const existingBadge = stepNumberDiv.querySelector('.step-status-badge');
-                            if (statusLabel) {
-                                if (existingBadge) {
-                                    existingBadge.className = \`step-status-badge \${status}\`;
-                                    existingBadge.textContent = statusLabel;
-                                } else {
-                                    const badge = document.createElement('span');
-                                    badge.className = \`step-status-badge \${status}\`;
-                                    badge.textContent = statusLabel;
-                                    stepNumberDiv.appendChild(badge);
-                                }
-                            } else if (existingBadge) {
-                                existingBadge.remove();
-                            }
-                        }
-                    }
                     
                     // Обработчики кнопок статусов шагов
                     document.querySelectorAll('.status-btn-icon[data-step-id]').forEach(btn => {
@@ -2763,9 +2134,6 @@ export class TestCaseRunnerProvider {
                                 // Находим карточку шага
                                 const stepCard = this.closest('div[style*="margin-bottom: 10px"]');
                                 if (stepCard) {
-                                    // Обновляем бейдж статуса
-                                    updateStatusBadge(stepCard, newStatus);
-                                    
                                     // Находим оба контейнера (для failed и skipped)
                                     const allReasonContainers = stepCard.querySelectorAll('.step-reason-editable');
                                     let bugLinkContainer = null;
@@ -2789,6 +2157,9 @@ export class TestCaseRunnerProvider {
                                             skipReasonContainer.style.display = 'none';
                                         }
                                         
+                                        // Сохраняем оригинальное значение bugLink из файла (если есть)
+                                        const originalBugLink = step.bugLink || '';
+                                        
                                         // Показываем поле причины провала
                                         if (!bugLinkContainer) {
                                             // Создаем контейнер для причины провала
@@ -2797,7 +2168,7 @@ export class TestCaseRunnerProvider {
                                                 bugLinkContainer = document.createElement('div');
                                                 bugLinkContainer.className = 'step-reason-editable';
                                                 bugLinkContainer.innerHTML = \`
-                                                    Причина провала: <input type="text" class="step-buglink required-field" data-step-id="\${stepId}" value="" placeholder="Укажите причину неудачного выполнения шага" required style="width: calc(100% - 120px); padding: 4px 6px; font-size: 11px; font-family: inherit; font-style: italic; margin-left: 4px; color: var(--text-primary);" />
+                                                    Причина провала: <input type="text" class="step-buglink required-field" data-step-id="\${stepId}" value="\${escapeHtml(originalBugLink)}" placeholder="Укажите причину неудачного выполнения шага" required style="width: calc(100% - 120px); padding: 4px 6px; font-size: 11px; font-family: inherit; font-style: italic; margin-left: 4px; color: var(--text-primary);" />
                                                 \`;
                                                 expectedBox.parentNode.insertBefore(bugLinkContainer, expectedBox.nextSibling);
                                                 
@@ -2813,25 +2184,33 @@ export class TestCaseRunnerProvider {
                                                         }
                                                     });
                                                     
-                                                    // Устанавливаем фокус
-                                                    setTimeout(() => {
-                                                        newBugLinkInput.focus();
-                                                    }, 100);
+                                                    // Устанавливаем фокус только если поле пустое
+                                                    if (!originalBugLink) {
+                                                        setTimeout(() => {
+                                                            newBugLinkInput.focus();
+                                                        }, 100);
+                                                    }
                                                 }
                                             }
                                         } else {
-                                            // Поле уже существует - очищаем его и показываем
+                                            // Поле уже существует - используем значение из step, не очищаем
                                             bugLinkContainer.style.display = 'block';
                                             const bugInput = bugLinkContainer.querySelector('.step-buglink');
                                             if (bugInput) {
-                                                bugInput.value = '';
-                                                setTimeout(() => {
-                                                    bugInput.focus();
-                                                }, 100);
+                                                // Синхронизируем значение из step с полем ввода
+                                                bugInput.value = originalBugLink || '';
+                                                // Устанавливаем фокус только если поле пустое
+                                                if (!originalBugLink) {
+                                                    setTimeout(() => {
+                                                        bugInput.focus();
+                                                    }, 100);
+                                                }
                                             }
                                         }
-                                        // Всегда очищаем bugLink при переключении на failed
-                                        step.bugLink = '';
+                                        // Сохраняем значение bugLink (не очищаем, если оно было)
+                                        if (!step.bugLink && originalBugLink) {
+                                            step.bugLink = originalBugLink;
+                                        }
                                     } else if (newStatus === 'skipped') {
                                         // Очищаем bugLink при переключении на skipped
                                         step.bugLink = '';
@@ -2840,6 +2219,9 @@ export class TestCaseRunnerProvider {
                                         if (bugLinkContainer) {
                                             bugLinkContainer.style.display = 'none';
                                         }
+                                        
+                                        // Сохраняем оригинальное значение skipReason из файла (если есть)
+                                        const originalSkipReason = step.skipReason || '';
                                         
                                         // Показываем поле причины пропуска
                                         if (!skipReasonContainer) {
@@ -2856,7 +2238,7 @@ export class TestCaseRunnerProvider {
                                                         class="step-skip-reason-input required-field" 
                                                         data-step-id="\${stepId}" 
                                                         list="\${datalistId}"
-                                                        value="\${escapeHtml(step.skipReason || '')}" 
+                                                        value="\${escapeHtml(originalSkipReason)}" 
                                                         placeholder="Выберите причину или введите свою" 
                                                         required
                                                         style="width: calc(100% - 120px); padding: 4px 6px; font-size: 11px; font-family: inherit; font-style: italic; margin-left: 4px; color: var(--text-primary);" 
@@ -2872,23 +2254,32 @@ export class TestCaseRunnerProvider {
                                                 // Добавляем обработчики для нового поля
                                                 setupSkipReasonHandlers(skipReasonContainer, stepId);
                                                 
-                                                // Устанавливаем фокус
+                                                // Устанавливаем фокус только если поле пустое
                                                 const newSkipInput = skipReasonContainer.querySelector('.step-skip-reason-input');
-                                                if (newSkipInput) {
+                                                if (newSkipInput && !originalSkipReason) {
                                                     setTimeout(() => {
                                                         newSkipInput.focus();
                                                     }, 100);
                                                 }
                                             }
                                         } else {
-                                            // Поле уже существует - показываем его
+                                            // Поле уже существует - используем значение из step, не очищаем
                                             skipReasonContainer.style.display = 'block';
                                             const skipInput = skipReasonContainer.querySelector('.step-skip-reason-input');
                                             if (skipInput) {
-                                                setTimeout(() => {
-                                                    skipInput.focus();
-                                                }, 100);
+                                                // Синхронизируем значение из step с полем ввода
+                                                skipInput.value = originalSkipReason || '';
+                                                // Устанавливаем фокус только если поле пустое
+                                                if (!originalSkipReason) {
+                                                    setTimeout(() => {
+                                                        skipInput.focus();
+                                                    }, 100);
+                                                }
                                             }
+                                        }
+                                        // Сохраняем значение skipReason (не очищаем, если оно было)
+                                        if (!step.skipReason && originalSkipReason) {
+                                            step.skipReason = originalSkipReason;
                                         }
                                     } else {
                                         // Скрываем оба поля при выборе другого статуса
@@ -3200,8 +2591,8 @@ export class TestCaseRunnerProvider {
                 return { valid: true, message: '' };
             }
             
-            // Сохранить выбранный файл
-            document.getElementById('save-selected-btn').addEventListener('click', async function() {
+            // Функция сохранения текущего файла (используется для кнопки и хоткея)
+            async function saveCurrentFile() {
                 if (currentFilePath && testCasesData[currentFilePath]) {
                     const content = testCasesData[currentFilePath];
                     
@@ -3209,17 +2600,48 @@ export class TestCaseRunnerProvider {
                     const validation = validateFailedSteps(content);
                     if (!validation.valid) {
                         showNotification(validation.message, 'error');
-                        return;
+                        return false;
                     }
                     
                     content.updatedAt = Date.now();
                     const success = await saveFile(currentFilePath, content);
                     if (success) {
                         modifiedFiles.delete(currentFilePath);
-                        this.disabled = modifiedFiles.size === 0 && !currentFilePath;
+                        const saveSelectedBtn = document.getElementById('save-selected-btn');
+                        if (saveSelectedBtn) {
+                            saveSelectedBtn.disabled = modifiedFiles.size === 0 && !currentFilePath;
+                        }
+                        const saveAllBtn = document.getElementById('save-all-btn');
+                        if (saveAllBtn) {
+                            saveAllBtn.disabled = modifiedFiles.size === 0;
+                        }
+                        return true;
                     }
+                    return false;
                 }
+                return false;
+            }
+            
+            // Сохранить выбранный файл
+            document.getElementById('save-selected-btn').addEventListener('click', async function() {
+                await saveCurrentFile();
             });
+            
+            // Горячая клавиша Ctrl+S (или Cmd+S на macOS) для быстрого сохранения
+            // Используем capture: true для перехвата события до того, как браузер его обработает
+            document.addEventListener('keydown', async function(e) {
+                // Проверяем комбинацию: Ctrl+S (Windows/Linux) или Cmd+S (macOS)
+                // metaKey - это Cmd на macOS, ctrlKey - это Ctrl на Windows/Linux
+                if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+                    // Всегда предотвращаем стандартное сохранение страницы браузером
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    
+                    // Сохраняем текущий файл
+                    await saveCurrentFile();
+                }
+            }, true); // true = capture phase, перехватываем событие до того, как оно достигнет целевого элемента
             
             // Сохранить все измененные файлы
             document.getElementById('save-all-btn').addEventListener('click', async function() {
@@ -3369,129 +2791,5 @@ export class TestCaseRunnerProvider {
         });
     }
 
-    /**
-     * Открыть раннер
-     */
-    async openRunner() {
-        // 1. Проверка ветки
-        const branch = await this.getCurrentBranch();
-        const confirmed = await vscode.window.showInformationMessage(
-            `Запустить раннер на ветке: ${branch}?`,
-            'Да', 'Нет'
-        );
-        
-        if (confirmed !== 'Да') {
-            return;
-        }
-
-        // 2. Сканирование файлов
-        vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: 'Сканирование тест-кейсов...',
-            cancellable: false
-        }, async (progress) => {
-            const testCases = await this.scanTestCases();
-            
-            // 3. Создание панели
-            this._panel = vscode.window.createWebviewPanel(
-                'testCaseRunner',
-                'Test Case Runner',
-                vscode.ViewColumn.One,
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true
-                }
-            );
-
-            // 4. Рендеринг HTML
-            this._panel.webview.html = this.getRunnerHtml(testCases);
-            
-            // Обновляем информацию о ветке
-            this._panel.webview.postMessage({
-                command: 'updateBranch',
-                branch: branch
-            });
-
-            // 5. Обработка сообщений
-            this._panel.webview.onDidReceiveMessage(async (message) => {
-                const filePath = message.filePath || this._currentSelectedPath;
-                if (!filePath) {
-                    return;
-                }
-
-                switch (message.command) {
-                    case 'loadTestCase':
-                        if (message.filePath) {
-                            try {
-                                const document = await vscode.workspace.openTextDocument(vscode.Uri.file(message.filePath));
-                                const content = JSON.parse(document.getText());
-                                
-                                if (content.id && content.name && Array.isArray(content.steps)) {
-                                    this._currentSelectedPath = message.filePath;
-                                    const testers = SettingsProvider.getTesters();
-                                    const tags = SettingsProvider.getTags();
-                                    const html = TestCaseRenderer.render(content, undefined, testers, tags);
-                                    
-                                    this._panel?.webview.postMessage({
-                                        command: 'updateContent',
-                                        html: html,
-                                        filePath: message.filePath
-                                    });
-                                }
-                            } catch (error) {
-                                vscode.window.showErrorMessage(`Ошибка при загрузке тест-кейса: ${error}`);
-                            }
-                        }
-                        break;
-                    case 'updateName':
-                        await this.updateTestCaseField(filePath, 'name', message.value);
-                        await this.refreshCurrentTestCase(filePath);
-                        break;
-                    case 'updateTestType':
-                        await this.updateTestCaseField(filePath, 'testType', message.value);
-                        await this.refreshCurrentTestCase(filePath);
-                        break;
-                    case 'updateStatus':
-                        await this.updateTestCaseField(filePath, 'status', message.value || message.status);
-                        await this.refreshCurrentTestCase(filePath);
-                        break;
-                    case 'updateField':
-                        await this.updateTestCaseField(filePath, message.field, message.value);
-                        await this.refreshCurrentTestCase(filePath);
-                        break;
-                    case 'updateStep':
-                        await this.updateStepStatus(filePath, message.stepId, message.field, message.value);
-                        await this.refreshCurrentTestCase(filePath);
-                        break;
-                    case 'stepAction':
-                        await this.handleStepAction(filePath, message.action, message.stepId);
-                        await this.refreshCurrentTestCase(filePath);
-                        break;
-                    case 'addTag':
-                        await SettingsProvider.addTag(message.tag);
-                        await this.refreshCurrentTestCase(filePath);
-                        break;
-                    case 'addReview':
-                        await this.addReview(filePath, message.stepId, message.comment);
-                        await this.refreshCurrentTestCase(filePath);
-                        break;
-                    case 'updateReviewStatus':
-                        await this.updateReviewStatus(filePath, message.reviewId, message.status);
-                        await this.refreshCurrentTestCase(filePath);
-                        break;
-                    case 'deleteReview':
-                        await this.deleteReview(filePath, message.reviewId);
-                        await this.refreshCurrentTestCase(filePath);
-                        break;
-                }
-            });
-
-            // Очистка при закрытии
-            this._panel.onDidDispose(() => {
-                this._panel = undefined;
-                this._currentSelectedPath = undefined;
-            });
-        });
-    }
 }
 

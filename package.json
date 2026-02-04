@@ -43,25 +43,15 @@
         "title": "Создать новый тест-кейс"
       },
       {
-        "command": "testCaseViewer.openRunner",
-        "title": "Open Runner",
-        "icon": "$(play)"
-      },
-      {
         "command": "testCaseViewer.createStandaloneHtml",
-        "title": "Создать HTML для браузера",
-        "icon": "$(browser)"
+        "title": "Запустить прогон тестов",
+        "icon": "$(play)"
       }
     ],
     "menus": {
       "view/title": [
         {
           "command": "testCaseViewer.openSettings",
-          "when": "view == testCaseViewer.sidebar",
-          "group": "navigation"
-        },
-        {
-          "command": "testCaseViewer.openRunner",
           "when": "view == testCaseViewer.sidebar",
           "group": "navigation"
         },
