@@ -483,10 +483,22 @@ export class TestCaseRunnerProvider {
     /**
      * Генерация автономного HTML файла для браузера
      */
-    private generateStandaloneHtml(testCases: Map<string, TestCaseNode>, branch: string, serverPort: number): string {
+    private generateStandaloneHtmlWithReset(testCases: Map<string, TestCaseNode>, branch: string, serverPort: number): { html: string, filesToSave: string[] } {
+        const result = this.generateStandaloneHtml(testCases, branch, serverPort, true);
+        if (typeof result === 'string') {
+            return { html: result, filesToSave: [] };
+        }
+        return result;
+    }
+    
+    private generateStandaloneHtml(testCases: Map<string, TestCaseNode>, branch: string, serverPort: number, resetStates: boolean = false): { html: string, filesToSave: string[] } | string {
         const rootNode = testCases.get('');
         if (!rootNode) {
-            return '<html><body>Тест-кейсы не найдены</body></html>';
+            if (resetStates) {
+                return { html: '<html><body>Тест-кейсы не найдены</body></html>', filesToSave: [] };
+            } else {
+                return '<html><body>Тест-кейсы не найдены</body></html>';
+            }
         }
 
         // Собираем все данные тест-кейсов в JSON
@@ -507,16 +519,46 @@ export class TestCaseRunnerProvider {
         };
         collectTestCases(rootNode);
         
-        // При первой генерации проверяем bugLink и выставляем статус failed если bugLink заполнен
-        Object.values(testCasesData).forEach((testCase: any) => {
-            if (testCase.steps && Array.isArray(testCase.steps)) {
-                testCase.steps.forEach((step: any) => {
-                    if (step.bugLink && step.bugLink.trim() !== '' && step.status !== 'failed') {
-                        step.status = 'failed';
+        // Сброс состояний шагов по алгоритму (только если resetStates = true)
+        const modifiedFilesForAutoSave: string[] = [];
+        if (resetStates) {
+            Object.entries(testCasesData).forEach(([relativePath, testCase]: [string, any]) => {
+                if (testCase.steps && Array.isArray(testCase.steps)) {
+                    let hasChanges = false;
+                    testCase.steps.forEach((step: any) => {
+                        const hasBugLink = step.bugLink && step.bugLink.trim() !== '';
+                        const hasSkipReason = step.skipReason && step.skipReason.trim() !== '';
+                        const oldStatus = step.status || '';
+                        const oldSkipReason = step.skipReason || '';
+                        
+                        if (hasBugLink && hasSkipReason) {
+                            // Если оба заполнены - предпочтение bugLink, очищаем skipReason
+                            step.status = 'failed';
+                            step.skipReason = '';
+                            hasChanges = hasChanges || (oldStatus !== 'failed' || oldSkipReason !== '');
+                        } else if (hasBugLink) {
+                            // Если заполнен bugLink - статус failed
+                            step.status = 'failed';
+                            hasChanges = hasChanges || (oldStatus !== 'failed');
+                        } else if (hasSkipReason) {
+                            // Если заполнен skipReason - очищаем причину и статус
+                            step.skipReason = '';
+                            step.status = '';
+                            hasChanges = hasChanges || (oldStatus !== '' || oldSkipReason !== '');
+                        } else {
+                            // Если оба пустые - статус пустой
+                            step.status = '';
+                            hasChanges = hasChanges || (oldStatus !== '');
+                        }
+                    });
+                    
+                    // Если были изменения, добавляем файл в список для автосохранения
+                    if (hasChanges && !modifiedFilesForAutoSave.includes(relativePath)) {
+                        modifiedFilesForAutoSave.push(relativePath);
                     }
-                });
-            }
-        });
+                }
+            });
+        }
 
         const treeHtml = rootNode ? this.renderTreeHtml(rootNode.children) : '<div>Тест-кейсы не найдены</div>';
         
@@ -525,7 +567,7 @@ export class TestCaseRunnerProvider {
         const testers = SettingsProvider.getTesters();
         const skipReasons = SettingsProvider.getSkipReasons();
 
-        return `<!DOCTYPE html>
+        const html = `<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -585,6 +627,7 @@ export class TestCaseRunnerProvider {
             align-items: center;
             justify-content: space-between;
             flex-shrink: 0;
+            gap: 16px;
         }
         
         .runner-title {
@@ -596,21 +639,33 @@ export class TestCaseRunnerProvider {
         .runner-branch {
             font-size: 12px;
             color: var(--text-secondary);
+            white-space: nowrap;
         }
         
         .theme-toggle {
-            margin-left: 12px;
-            padding: 4px 8px;
-            background-color: var(--accent-color);
-            color: white;
+            padding: 8px;
+            background-color: transparent;
             border: none;
-            border-radius: 3px;
+            border-radius: 4px;
             cursor: pointer;
-            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            transition: background-color 0.2s;
+            color: var(--text-primary);
         }
         
         .theme-toggle:hover {
-            background-color: var(--accent-hover);
+            background-color: var(--hover-bg);
+        }
+        
+        .theme-toggle svg {
+            width: 20px;
+            height: 20px;
+            stroke: currentColor;
+            transition: stroke 0.2s;
         }
         
         .filter-section {
@@ -914,6 +969,14 @@ export class TestCaseRunnerProvider {
             color: var(--selected-text);
         }
         
+        .tree-folder.selected {
+            background-color: var(--selected-bg);
+        }
+        
+        .tree-folder.selected .tree-folder-header {
+            color: var(--selected-text);
+        }
+        
         .tree-testcase.hidden {
             display: none;
         }
@@ -960,6 +1023,92 @@ export class TestCaseRunnerProvider {
             background-color: var(--hover-bg);
         }
         
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 20000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 20px;
+            min-width: 400px;
+            max-width: 500px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+        
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+        }
+        
+        .modal-content {
+            margin-bottom: 20px;
+        }
+        
+        .modal-label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        
+        .modal-input {
+            width: 100%;
+            padding: 8px;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            font-size: 12px;
+            box-sizing: border-box;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+        
+        .modal-btn {
+            padding: 6px 16px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .modal-btn-primary {
+            background-color: var(--accent-color);
+            color: white;
+        }
+        
+        .modal-btn-primary:hover {
+            background-color: var(--accent-hover);
+        }
+        
+        .modal-btn-secondary {
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        
+        .modal-btn-secondary:hover {
+            background-color: var(--hover-bg);
+        }
+        
         .empty-content {
             display: flex;
             align-items: center;
@@ -974,8 +1123,62 @@ export class TestCaseRunnerProvider {
             border-top: 1px solid var(--border-color);
             background-color: var(--bg-secondary);
             display: flex;
-            gap: 8px;
+            align-items: center;
+            gap: 16px;
             flex-shrink: 0;
+        }
+        
+        .runner-stats {
+            display: flex !important;
+            align-items: center;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-primary);
+            flex-wrap: wrap;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        
+        .runner-stats-item {
+            white-space: nowrap;
+            display: flex !important;
+            align-items: center;
+            gap: 4px;
+            visibility: visible !important;
+        }
+        
+        .runner-stats-label {
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        
+        .runner-stats-item span:not(.runner-stats-label) {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+        
+        #stats-passed,
+        #stats-passed-percent {
+            color: #28a745 !important;
+            font-weight: 600;
+        }
+        
+        #stats-remaining,
+        #stats-remaining-percent {
+            color: #ffc107 !important;
+            font-weight: 600;
+        }
+        
+        #stats-failed,
+        #stats-failed-percent {
+            color: #dc3545 !important;
+            font-weight: 600;
+        }
+        
+        #stats-skipped,
+        #stats-skipped-percent {
+            color: #9e9e9e !important;
+            font-weight: 600;
         }
         
         .download-btn {
@@ -1263,8 +1466,10 @@ export class TestCaseRunnerProvider {
         <div class="runner-title">Test Case Runner</div>
         <div style="display: flex; align-items: center; gap: 12px;">
             <div class="runner-branch" id="branch-info">Ветка: ${this.escapeHtml(branch)}</div>
-            <button class="theme-toggle" id="theme-toggle">🌙 Темная тема</button>
         </div>
+        <button class="theme-toggle" id="theme-toggle" aria-label="Activate dark mode">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
     </div>
     <div class="filter-section">
         <div class="filter-group">
@@ -1333,14 +1538,62 @@ export class TestCaseRunnerProvider {
         </div>
     </div>
     <div class="download-section">
-        <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
+        <div style="flex: 1; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
             <span id="server-status" style="font-size: 12px; color: var(--text-secondary);">Сервер: проверка...</span>
+            <div class="runner-stats" id="runner-stats">
+                <div class="runner-stats-item">
+                    <span class="runner-stats-label">Всего:</span>
+                    <span id="stats-total">0</span>
+                </div>
+                <div class="runner-stats-item">
+                    <span class="runner-stats-label">Успешно:</span>
+                    <span id="stats-passed">0</span>
+                    <span id="stats-passed-percent">(0%)</span>
+                </div>
+                <div class="runner-stats-item">
+                    <span class="runner-stats-label">Осталось:</span>
+                    <span id="stats-remaining">0</span>
+                    <span id="stats-remaining-percent">(0%)</span>
+                </div>
+                <div class="runner-stats-item">
+                    <span class="runner-stats-label">Failed:</span>
+                    <span id="stats-failed">0</span>
+                    <span id="stats-failed-percent">(0%)</span>
+                </div>
+                <div class="runner-stats-item">
+                    <span class="runner-stats-label">Skip:</span>
+                    <span id="stats-skipped">0</span>
+                    <span id="stats-skipped-percent">(0%)</span>
+                </div>
+            </div>
         </div>
         <button class="download-btn" id="save-all-btn">Сохранить все изменения</button>
         <button class="download-btn" id="save-selected-btn" disabled>Сохранить выбранный</button>
     </div>
     <div class="context-menu" id="context-menu">
         <div class="context-menu-item" id="context-menu-all-passed">Все пройдено</div>
+        <div class="context-menu-item" id="context-menu-all-passed-folder">Пометить все pass</div>
+        <div class="context-menu-item" id="context-menu-all-skipped">Пометить все skipped</div>
+    </div>
+    <div class="modal-overlay" id="skip-reason-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-title">Выберите причину пропуска</div>
+            <div class="modal-content">
+                <label class="modal-label" for="skip-reason-select">Причина пропуска:</label>
+                <input 
+                    type="text" 
+                    id="skip-reason-select" 
+                    class="modal-input" 
+                    list="skip-reasons-modal"
+                    placeholder="Выберите причину или введите свою"
+                />
+                <datalist id="skip-reasons-modal"></datalist>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" id="skip-reason-cancel">Отмена</button>
+                <button class="modal-btn modal-btn-primary" id="skip-reason-confirm">Применить</button>
+            </div>
+        </div>
     </div>
     <script>
         (function() {
@@ -1385,16 +1638,29 @@ export class TestCaseRunnerProvider {
             // Переключение темы
             const themeToggle = document.getElementById('theme-toggle');
             const isDarkTheme = localStorage.getItem('testCaseRunnerTheme') === 'dark';
+            
+            // SVG иконки
+            const sunIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-sun"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>';
+            const moonIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+            
+            // Функция обновления иконки
+            function updateThemeIcon(isDark) {
+                themeToggle.innerHTML = isDark ? sunIcon : moonIcon;
+                themeToggle.setAttribute('aria-label', isDark ? 'Activate light mode' : 'Activate dark mode');
+            }
+            
             if (isDarkTheme) {
                 document.body.classList.add('dark-theme');
-                themeToggle.textContent = '☀️ Светлая тема';
+                updateThemeIcon(true);
+            } else {
+                updateThemeIcon(false);
             }
             
             themeToggle.addEventListener('click', function() {
                 document.body.classList.toggle('dark-theme');
                 const isDark = document.body.classList.contains('dark-theme');
                 localStorage.setItem('testCaseRunnerTheme', isDark ? 'dark' : 'light');
-                themeToggle.textContent = isDark ? '☀️ Светлая тема' : '🌙 Темная тема';
+                updateThemeIcon(isDark);
             });
             
             // Инициализация фильтров
@@ -1513,6 +1779,133 @@ export class TestCaseRunnerProvider {
                 tagsSelect.appendChild(option);
             });
             
+            // Функция обновления статистики
+            function updateStats() {
+                // Получаем все видимые тест-кейсы из дерева
+                const visibleTestCases = Array.from(document.querySelectorAll('.tree-testcase')).filter(el => {
+                    return !el.classList.contains('hidden');
+                });
+                
+                let total = 0;
+                let passed = 0;
+                let remaining = 0;
+                let failed = 0;
+                let skipped = 0;
+                
+                visibleTestCases.forEach(testCaseEl => {
+                    const fullPath = testCaseEl.getAttribute('data-file-path');
+                    if (!fullPath) return;
+                    
+                    // Находим относительный путь
+                    let relativePath = null;
+                    for (const [relPath, fullPathValue] of Object.entries(filePathMap)) {
+                        if (fullPathValue === fullPath) {
+                            relativePath = relPath;
+                            break;
+                        }
+                    }
+                    // Если не нашли, пробуем использовать полный путь как ключ
+                    if (!relativePath && testCasesData[fullPath]) {
+                        relativePath = fullPath;
+                    }
+                    
+                    if (!relativePath || !testCasesData[relativePath]) return;
+                    
+                    const testCase = testCasesData[relativePath];
+                    if (!testCase.steps || !Array.isArray(testCase.steps) || testCase.steps.length === 0) {
+                        return;
+                    }
+                    
+                    total++;
+                    
+                    // Проверяем статусы шагов
+                    const stepStatuses = testCase.steps.map(step => step.status || '');
+                    const hasFailed = stepStatuses.some(status => status === 'failed');
+                    const hasSkipped = stepStatuses.some(status => status === 'skipped');
+                    const allPassed = stepStatuses.every(status => status === 'passed');
+                    const hasOtherStatus = stepStatuses.some(status => 
+                        status && status !== 'passed' && status !== 'failed' && status !== 'skipped'
+                    );
+                    
+                    if (hasFailed) {
+                        failed++;
+                    }
+                    if (hasSkipped) {
+                        skipped++;
+                    }
+                    if (allPassed) {
+                        passed++;
+                    }
+                    if (hasOtherStatus) {
+                        remaining++;
+                    }
+                });
+                
+                // Обновляем элементы статистики
+                const statsContainer = document.getElementById('runner-stats');
+                const totalEl = document.getElementById('stats-total');
+                const passedEl = document.getElementById('stats-passed');
+                const passedPercentEl = document.getElementById('stats-passed-percent');
+                const remainingEl = document.getElementById('stats-remaining');
+                const remainingPercentEl = document.getElementById('stats-remaining-percent');
+                const failedEl = document.getElementById('stats-failed');
+                const failedPercentEl = document.getElementById('stats-failed-percent');
+                const skippedEl = document.getElementById('stats-skipped');
+                const skippedPercentEl = document.getElementById('stats-skipped-percent');
+                
+                // Убеждаемся, что контейнер статистики виден
+                if (statsContainer) {
+                    statsContainer.style.display = 'flex';
+                    statsContainer.style.visibility = 'visible';
+                    statsContainer.style.opacity = '1';
+                }
+                
+                if (totalEl) {
+                    totalEl.textContent = total.toString();
+                    totalEl.style.display = 'inline';
+                }
+                
+                const passedPercent = total > 0 ? Math.round((passed / total) * 100) : 0;
+                if (passedEl) {
+                    passedEl.textContent = passed.toString();
+                    passedEl.style.display = 'inline';
+                }
+                if (passedPercentEl) {
+                    passedPercentEl.textContent = '(' + passedPercent + '%)';
+                    passedPercentEl.style.display = 'inline';
+                }
+                
+                const remainingPercent = total > 0 ? Math.round((remaining / total) * 100) : 0;
+                if (remainingEl) {
+                    remainingEl.textContent = remaining.toString();
+                    remainingEl.style.display = 'inline';
+                }
+                if (remainingPercentEl) {
+                    remainingPercentEl.textContent = '(' + remainingPercent + '%)';
+                    remainingPercentEl.style.display = 'inline';
+                }
+                
+                const failedPercent = total > 0 ? Math.round((failed / total) * 100) : 0;
+                if (failedEl) {
+                    failedEl.textContent = failed.toString();
+                    failedEl.style.display = 'inline';
+                }
+                if (failedPercentEl) {
+                    failedPercentEl.textContent = '(' + failedPercent + '%)';
+                    failedPercentEl.style.display = 'inline';
+                }
+                
+                const skippedPercent = total > 0 ? Math.round((skipped / total) * 100) : 0;
+                if (skippedEl) {
+                    skippedEl.textContent = skipped.toString();
+                    skippedEl.style.display = 'inline';
+                }
+                if (skippedPercentEl) {
+                    skippedPercentEl.textContent = '(' + skippedPercent + '%)';
+                    skippedPercentEl.style.display = 'inline';
+                }
+            }
+            
             // Функция фильтрации дерева
             function filterTree() {
                 const selectedAuthor = authorSelect.value;
@@ -1535,6 +1928,7 @@ export class TestCaseRunnerProvider {
                     document.querySelectorAll('.tree-testcase, .tree-folder').forEach(el => {
                         el.classList.remove('hidden');
                     });
+                    updateStats();
                     return;
                 }
                 
@@ -1608,6 +2002,9 @@ export class TestCaseRunnerProvider {
                         }
                     });
                 }
+                
+                // Обновляем статистику после фильтрации
+                updateStats();
             }
             
             // Добавляем обработчики для всех фильтров
@@ -1638,6 +2035,21 @@ export class TestCaseRunnerProvider {
                     
                     // Применяем фильтрацию (которая покажет все элементы)
                     filterTree();
+                });
+            }
+            
+            // Инициализация статистики при загрузке
+            // Вызываем после небольшой задержки, чтобы убедиться, что DOM готов
+            setTimeout(function() {
+                updateStats();
+            }, 100);
+            
+            // Также вызываем при полной загрузке страницы
+            if (document.readyState === 'complete') {
+                updateStats();
+            } else {
+                window.addEventListener('load', function() {
+                    updateStats();
                 });
             }
             
@@ -1786,10 +2198,20 @@ export class TestCaseRunnerProvider {
             
             // Обработка правого клика на тест-кейс (контекстное меню)
             let contextMenuTargetPath = null;
+            let contextMenuTargetFolderPath = null;
             document.addEventListener('contextmenu', function(e) {
                 const testCase = e.target.closest('.tree-testcase');
+                const folder = e.target.closest('.tree-folder-header');
+                
                 if (testCase) {
                     e.preventDefault();
+                    // Убираем выделение со всех элементов
+                    document.querySelectorAll('.tree-testcase, .tree-folder').forEach(el => {
+                        el.classList.remove('selected');
+                    });
+                    // Выделяем текущий тест-кейс
+                    testCase.classList.add('selected');
+                    
                     const fullPath = testCase.getAttribute('data-file-path');
                     // Находим относительный путь
                     let relativePath = null;
@@ -1805,15 +2227,47 @@ export class TestCaseRunnerProvider {
                     
                     if (relativePath && testCasesData[relativePath]) {
                         contextMenuTargetPath = relativePath;
+                        contextMenuTargetFolderPath = null;
                         const contextMenu = document.getElementById('context-menu');
                         if (contextMenu) {
                             contextMenu.style.left = e.pageX + 'px';
                             contextMenu.style.top = e.pageY + 'px';
                             contextMenu.classList.add('visible');
+                            // Показываем только пункт "Все пройдено" для тест-кейсов
+                            document.getElementById('context-menu-all-passed').style.display = 'block';
+                            document.getElementById('context-menu-all-passed-folder').style.display = 'none';
+                            document.getElementById('context-menu-all-skipped').style.display = 'none';
+                        }
+                    }
+                } else if (folder) {
+                    e.preventDefault();
+                    // Убираем выделение со всех элементов
+                    document.querySelectorAll('.tree-testcase, .tree-folder').forEach(el => {
+                        el.classList.remove('selected');
+                    });
+                    // Выделяем текущую папку
+                    const folderElement = folder.closest('.tree-folder');
+                    if (folderElement) {
+                        folderElement.classList.add('selected');
+                    }
+                    
+                    const folderPath = folder.getAttribute('data-path');
+                    if (folderPath !== null) {
+                        contextMenuTargetFolderPath = folderPath;
+                        contextMenuTargetPath = null;
+                        const contextMenu = document.getElementById('context-menu');
+                        if (contextMenu) {
+                            contextMenu.style.left = e.pageX + 'px';
+                            contextMenu.style.top = e.pageY + 'px';
+                            contextMenu.classList.add('visible');
+                            // Показываем пункты для папок
+                            document.getElementById('context-menu-all-passed').style.display = 'none';
+                            document.getElementById('context-menu-all-passed-folder').style.display = 'block';
+                            document.getElementById('context-menu-all-skipped').style.display = 'block';
                         }
                     }
                 } else {
-                    // Скрываем меню при правом клике вне тест-кейса
+                    // Скрываем меню при правом клике вне тест-кейса или папки
                     const contextMenu = document.getElementById('context-menu');
                     if (contextMenu) {
                         contextMenu.classList.remove('visible');
@@ -1856,6 +2310,263 @@ export class TestCaseRunnerProvider {
                     }
                 });
             }
+            
+            // Обработчик пункта "Пометить все pass" для папок
+            const allPassedFolderMenuItem = document.getElementById('context-menu-all-passed-folder');
+            if (allPassedFolderMenuItem) {
+                allPassedFolderMenuItem.addEventListener('click', function() {
+                    if (contextMenuTargetFolderPath) {
+                        // Скрываем контекстное меню
+                        const contextMenu = document.getElementById('context-menu');
+                        if (contextMenu) {
+                            contextMenu.classList.remove('visible');
+                        }
+                        
+                        // Находим все тест-кейсы в папке и подпапках
+                        const testCasePaths = findAllTestCasesInFolder(contextMenuTargetFolderPath);
+                        
+                        let updatedCount = 0;
+                        let stepsCount = 0;
+                        
+                        // Обновляем все шаги во всех найденных тест-кейсах
+                        testCasePaths.forEach(relativePath => {
+                            const testCase = testCasesData[relativePath];
+                            if (testCase && testCase.steps && Array.isArray(testCase.steps)) {
+                                let hasChanges = false;
+                                testCase.steps.forEach(step => {
+                                    step.status = 'passed';
+                                    step.bugLink = '';
+                                    step.skipReason = '';
+                                    hasChanges = true;
+                                    stepsCount++;
+                                });
+                                
+                                if (hasChanges) {
+                                    modifiedFiles.add(relativePath);
+                                    updatedCount++;
+                                    
+                                    // Если этот тест-кейс сейчас открыт, обновляем его отображение
+                                    if (currentFilePath === relativePath) {
+                                        loadTestCaseContent(testCase, relativePath);
+                                    }
+                                }
+                            }
+                        });
+                        
+                        // Обновляем статистику
+                        updateStats();
+                        
+                        // Включаем кнопки сохранения
+                        document.getElementById('save-selected-btn').disabled = false;
+                        document.getElementById('save-all-btn').disabled = false;
+                        
+                        showNotification(\`Обновлено тест-кейсов: \${updatedCount}, шагов: \${stepsCount}\`, 'success');
+                    }
+                });
+            }
+            
+            // Обработчик пункта "Пометить все skipped"
+            const allSkippedMenuItem = document.getElementById('context-menu-all-skipped');
+            if (allSkippedMenuItem) {
+                allSkippedMenuItem.addEventListener('click', function() {
+                    if (contextMenuTargetFolderPath) {
+                        // Скрываем контекстное меню
+                        const contextMenu = document.getElementById('context-menu');
+                        if (contextMenu) {
+                            contextMenu.classList.remove('visible');
+                        }
+                        
+                        // Показываем модальное окно
+                        const modal = document.getElementById('skip-reason-modal');
+                        const skipReasonInput = document.getElementById('skip-reason-select');
+                        const datalist = document.getElementById('skip-reasons-modal');
+                        
+                        // Заполняем datalist существующими причинами
+                        if (datalist) {
+                            datalist.innerHTML = skipReasons.map(reason => 
+                                '<option value="' + escapeHtml(reason) + '">' + escapeHtml(reason) + '</option>'
+                            ).join('');
+                        }
+                        
+                        if (skipReasonInput) {
+                            skipReasonInput.value = '';
+                        }
+                        
+                        if (modal) {
+                            modal.style.display = 'flex';
+                            if (skipReasonInput) {
+                                setTimeout(() => skipReasonInput.focus(), 100);
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Функция для поиска всех тест-кейсов в папке и подпапках
+            function findAllTestCasesInFolder(folderPath) {
+                const testCases = [];
+                const folderPathPrefix = folderPath === '' ? '' : folderPath + '/';
+                
+                // Находим все элементы папок и тест-кейсов с нужным путем
+                const allFolders = document.querySelectorAll('.tree-folder-header[data-path]');
+                const allTestCases = document.querySelectorAll('.tree-testcase[data-file-path]');
+                
+                // Собираем пути всех подпапок
+                const subFolderPaths = new Set();
+                subFolderPaths.add(folderPath);
+                
+                allFolders.forEach(folder => {
+                    const path = folder.getAttribute('data-path');
+                    if (path !== null && (path === folderPath || path.startsWith(folderPathPrefix))) {
+                        subFolderPaths.add(path);
+                    }
+                });
+                
+                // Находим все тест-кейсы в папке и подпапках
+                allTestCases.forEach(testCaseEl => {
+                    const fullPath = testCaseEl.getAttribute('data-file-path');
+                    if (!fullPath) return;
+                    
+                    // Находим относительный путь
+                    let relativePath = null;
+                    for (const [relPath, fullPathValue] of Object.entries(filePathMap)) {
+                        if (fullPathValue === fullPath) {
+                            relativePath = relPath;
+                            break;
+                        }
+                    }
+                    if (!relativePath && testCasesData[fullPath]) {
+                        relativePath = fullPath;
+                    }
+                    
+                    if (relativePath && testCasesData[relativePath]) {
+                        // Проверяем, принадлежит ли тест-кейс этой папке или подпапке
+                        const testCasePath = relativePath.split('/').slice(0, -1).join('/');
+                        if (testCasePath === folderPath || testCasePath.startsWith(folderPathPrefix)) {
+                            testCases.push(relativePath);
+                        }
+                    }
+                });
+                
+                return testCases;
+            }
+            
+            // Обработчики модального окна
+            const skipReasonModal = document.getElementById('skip-reason-modal');
+            const skipReasonConfirm = document.getElementById('skip-reason-confirm');
+            const skipReasonCancel = document.getElementById('skip-reason-cancel');
+            const skipReasonInput = document.getElementById('skip-reason-select');
+            
+            if (skipReasonCancel) {
+                skipReasonCancel.addEventListener('click', function() {
+                    if (skipReasonModal) {
+                        skipReasonModal.style.display = 'none';
+                    }
+                });
+            }
+            
+            // Закрытие по клику вне модального окна
+            if (skipReasonModal) {
+                skipReasonModal.addEventListener('click', function(e) {
+                    if (e.target === skipReasonModal) {
+                        skipReasonModal.style.display = 'none';
+                    }
+                });
+            }
+            
+            if (skipReasonConfirm) {
+                skipReasonConfirm.addEventListener('click', async function() {
+                    if (!contextMenuTargetFolderPath || !skipReasonInput) return;
+                    
+                    const reason = skipReasonInput.value.trim();
+                    if (!reason) {
+                        showNotification('Укажите причину пропуска', 'error');
+                        return;
+                    }
+                    
+                    // Проверяем, является ли причина новой
+                    const isCustomReason = !skipReasons.includes(reason);
+                    
+                    // Если причина новая, сохраняем её в config.json
+                    if (isCustomReason) {
+                        try {
+                            const response = await fetch(SERVER_URL + '/api/addSkipReason', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    reason: reason
+                                })
+                            });
+                            
+                            if (response.ok) {
+                                const result = await response.json();
+                                if (result.skipReasons) {
+                                    skipReasons.length = 0;
+                                    skipReasons.push(...result.skipReasons);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error adding skip reason:', error);
+                        }
+                    }
+                    
+                    // Находим все тест-кейсы в папке и подпапках
+                    const testCasePaths = findAllTestCasesInFolder(contextMenuTargetFolderPath);
+                    
+                    let updatedCount = 0;
+                    let stepsCount = 0;
+                    
+                    // Обновляем все шаги во всех найденных тест-кейсах
+                    testCasePaths.forEach(relativePath => {
+                        const testCase = testCasesData[relativePath];
+                        if (testCase && testCase.steps && Array.isArray(testCase.steps)) {
+                            let hasChanges = false;
+                            testCase.steps.forEach(step => {
+                                step.status = 'skipped';
+                                step.skipReason = reason;
+                                hasChanges = true;
+                                stepsCount++;
+                            });
+                            
+                            if (hasChanges) {
+                                modifiedFiles.add(relativePath);
+                                updatedCount++;
+                                
+                                // Если этот тест-кейс сейчас открыт, обновляем его отображение
+                                if (currentFilePath === relativePath) {
+                                    loadTestCaseContent(testCase, relativePath);
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Обновляем статистику
+                    updateStats();
+                    
+                    // Включаем кнопки сохранения
+                    document.getElementById('save-selected-btn').disabled = false;
+                    document.getElementById('save-all-btn').disabled = false;
+                    
+                    // Закрываем модальное окно
+                    if (skipReasonModal) {
+                        skipReasonModal.style.display = 'none';
+                    }
+                    
+                    showNotification(\`Обновлено тест-кейсов: \${updatedCount}, шагов: \${stepsCount}\`, 'success');
+                });
+            }
+            
+            // Закрытие модального окна по Escape
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    const modal = document.getElementById('skip-reason-modal');
+                    if (modal && modal.style.display === 'flex') {
+                        modal.style.display = 'none';
+                    }
+                }
+            });
             
             // Функция загрузки содержимого тест-кейса
             function loadTestCaseContent(testCase, relativePath) {
@@ -2300,6 +3011,9 @@ export class TestCaseRunnerProvider {
                                     document.getElementById('save-selected-btn').disabled = false;
                                     document.getElementById('save-all-btn').disabled = false;
                                 }
+                                
+                                // Обновляем статистику после изменения статуса
+                                updateStats();
                             }
                         });
                     });
@@ -2701,6 +3415,79 @@ export class TestCaseRunnerProvider {
     </script>
 </body>
 </html>`;
+        
+        if (resetStates) {
+            return { html, filesToSave: modifiedFilesForAutoSave };
+        } else {
+            return html;
+        }
+    }
+    
+    private async autoSaveFiles(filesToSave: string[], testCases: Map<string, TestCaseNode>, serverPort: number): Promise<void> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        const workspacePath = workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : '';
+        
+        // Собираем данные тест-кейсов
+        const testCasesData: any = {};
+        const rootNode = testCases.get('');
+        if (!rootNode) return;
+        
+        const collectTestCases = (node: TestCaseNode) => {
+            if (node.type === 'testcase' && node.filePath && node.data) {
+                const relativePath = node.relativePath || path.relative(workspacePath, node.filePath);
+                testCasesData[relativePath] = node.data;
+            }
+            node.children.forEach(child => collectTestCases(child));
+        };
+        collectTestCases(rootNode);
+        
+        // Сохраняем каждый файл через API
+        for (const relativePath of filesToSave) {
+            if (testCasesData[relativePath]) {
+                const content = testCasesData[relativePath];
+                content.updatedAt = Date.now();
+                
+                await new Promise<void>((resolve) => {
+                    const http = require('http');
+                    const postData = JSON.stringify({
+                        filePath: relativePath,
+                        content: content
+                    });
+                    
+                    const options = {
+                        hostname: 'localhost',
+                        port: serverPort,
+                        path: '/api/update',
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Content-Length': Buffer.byteLength(postData)
+                        }
+                    };
+                    
+                    const req = http.request(options, (res: any) => {
+                        let data = '';
+                        res.on('data', (chunk: any) => {
+                            data += chunk;
+                        });
+                        res.on('end', () => {
+                            if (res.statusCode !== 200) {
+                                console.error(`Failed to save file: ${relativePath}`);
+                            }
+                            resolve();
+                        });
+                    });
+                    
+                    req.on('error', (error: any) => {
+                        console.error(`Error saving file ${relativePath}:`, error);
+                        resolve();
+                    });
+                    
+                    req.write(postData);
+                    req.end();
+                });
+            }
+        }
     }
 
     /**
@@ -2746,9 +3533,16 @@ export class TestCaseRunnerProvider {
             progress.report({ increment: 50, message: 'Сканирование тест-кейсов...' });
             const testCases = await this.scanTestCases();
             
-            // 3. Генерация HTML с адресом сервера
-            progress.report({ increment: 80, message: 'Генерация HTML...' });
-            const html = this.generateStandaloneHtml(testCases, branch, serverPort);
+            // 3. Генерация HTML с адресом сервера (внутри происходит сброс состояний)
+            progress.report({ increment: 70, message: 'Генерация HTML и сброс состояний...' });
+            const result = this.generateStandaloneHtmlWithReset(testCases, branch, serverPort);
+            const html = result.html;
+            
+            // 3.1. Автосохранение всех измененных файлов
+            if (result.filesToSave.length > 0) {
+                progress.report({ increment: 85, message: `Автосохранение ${result.filesToSave.length} файлов...` });
+                await this.autoSaveFiles(result.filesToSave, testCases, serverPort);
+            }
             
             // 4. Сохранение файла
             const htmlPath = path.join(workspacePath, 'test-case-runner.html');
