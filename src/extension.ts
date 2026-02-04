@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { TestCaseSidebarProvider } from './testCaseSidebarProvider';
 import { SettingsProvider } from './settingsProvider';
+import { TestCaseRunnerProvider } from './testCaseRunnerProvider';
 
 function generateUUID(): string {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -124,7 +125,7 @@ export async function activate(context: vscode.ExtensionContext) {
     await SettingsProvider.initialize(context);
     
     // Register sidebar provider
-    const sidebarProvider = new TestCaseSidebarProvider(context.extensionUri, context);
+    const sidebarProvider = new TestCaseSidebarProvider(context.extensionUri);
     
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
@@ -132,6 +133,16 @@ export async function activate(context: vscode.ExtensionContext) {
             sidebarProvider
         )
     );
+
+    // Initialize runner provider
+    const runnerProvider = new TestCaseRunnerProvider();
+    
+    // Сохраняем провайдер для остановки сервера при деактивации
+    context.subscriptions.push({
+        dispose: () => {
+            runnerProvider.stopLocalServer();
+        }
+    });
 
     // Register commands
     context.subscriptions.push(
@@ -152,6 +163,21 @@ export async function activate(context: vscode.ExtensionContext) {
             createNewTestCase(context);
         })
     );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.openRunner', () => {
+            runnerProvider.openRunner();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.createStandaloneHtml', () => {
+            runnerProvider.createStandaloneHtml();
+        })
+    );
 }
 
-export function deactivate() {}
+export function deactivate() {
+    // Остановка локального сервера при деактивации расширения
+    // runnerProvider будет доступен через контекст, если нужно
+}

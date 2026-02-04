@@ -6,6 +6,7 @@
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Архитектура проекта, компоненты, поток данных
 - [DEVELOPMENT.md](./DEVELOPMENT.md) - Руководство по разработке, отладка, тестирование
 - [API.md](./API.md) - API документация, интерфейсы, методы
+- [CONTINUE_INSTALLATION.md](./CONTINUE_INSTALLATION.md) - Подключение локального LLM к Continue
 
 ## Краткое описание проекта
 

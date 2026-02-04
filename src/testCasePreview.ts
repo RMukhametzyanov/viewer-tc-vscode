@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { TestCaseRenderer } from './testCaseRenderer';
+import { SettingsProvider } from './settingsProvider';
 
 interface TestCase {
     id: string;
@@ -112,6 +113,8 @@ export class TestCasePreviewProvider {
             return;
         }
 
-        panel.webview.html = TestCaseRenderer.render(testCase);
+        const testers = SettingsProvider.getTesters();
+        const tags = SettingsProvider.getTags();
+        panel.webview.html = TestCaseRenderer.render(testCase, undefined, testers, tags);
     }
 }

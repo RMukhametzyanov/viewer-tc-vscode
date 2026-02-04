@@ -48,6 +48,23 @@ interface ParsedDescription {
     statusChangeDate?: string;
 }
 
+interface ReviewComment {
+    id: string;
+    stepId: string;
+    stepNumber: number;
+    author: string;
+    createdAt: number;
+    comment: string;
+    status: 'open' | 'resolved' | 'fixed';
+    resolvedAt?: number;
+    resolvedBy?: string;
+    type?: 'suggestion' | 'question' | 'issue';
+}
+
+interface Notes {
+    reviews?: ReviewComment[];
+}
+
 export class TestCaseRenderer {
     static parseDescription(description: string): ParsedDescription {
         const parsed: ParsedDescription = {};
@@ -110,7 +127,7 @@ export class TestCaseRenderer {
             .replace(/'/g, '&#039;');
     }
 
-    static renderSteps(steps: TestStep[]): string {
+    static renderSteps(steps: TestStep[], reviews?: ReviewComment[], testers?: string[]): string {
         if (!steps || steps.length === 0) {
             return '<div class="empty">Нет шагов тестирования</div>';
         }
@@ -123,12 +140,14 @@ export class TestCaseRenderer {
             const isLast = index === steps.length - 1;
             const stepNumber = index + 1;
             
+            // Get reviews for this step (used in renderStepReviews)
+            const stepReviews = reviews?.filter(r => r.stepId === step.id) || [];
+            
             return `
                 <div class="step" data-step-id="${this.escapeHtml(step.id || '')}" data-step-index="${index}">
                     <div class="step-header">
                         <div class="step-number">
                             Шаг ${stepNumber}
-                            ${step.status ? `<span class="step-status ${statusClass}">${this.getStatusLabel(step.status)}</span>` : ''}
                         </div>
                         <div class="step-actions">
                             <button class="step-action-btn" data-action="move-up" data-step-id="${this.escapeHtml(step.id || '')}" ${isFirst ? 'disabled' : ''} title="Переместить выше">↑</button>
@@ -156,9 +175,86 @@ export class TestCaseRenderer {
                     ${step.skipReason ? `
                     <div class="step-skip-reason">Причина пропуска: ${this.escapeHtml(step.skipReason)}</div>
                     ` : ''}
+                    
+                    ${this.renderStepReviews(stepReviews, step.id, stepNumber, testers || [])}
                 </div>
             `;
         }).join('');
+    }
+
+    static renderStepReviews(reviews: ReviewComment[], stepId: string, stepNumber: number, testers: string[]): string {
+        const totalReviews = reviews.length;
+        const openReviews = reviews.filter(r => r.status === 'open').length;
+        const sortedReviews = [...reviews].sort((a, b) => b.createdAt - a.createdAt);
+        
+        return `
+            <div class="step-reviews" data-step-id="${this.escapeHtml(stepId)}">
+                ${totalReviews > 0 ? `
+                    <div class="step-reviews-header">
+                        <button class="step-reviews-toggle" data-step-id="${this.escapeHtml(stepId)}" title="Показать/скрыть комментарии">
+                            <span class="step-reviews-toggle-icon">▼</span>
+                            <span class="step-reviews-count">Комментарии (всего ${totalReviews}${openReviews > 0 ? `, открытых ${openReviews}` : ''})</span>
+                        </button>
+                    </div>
+                    <div class="step-reviews-content collapsed" data-step-id="${this.escapeHtml(stepId)}">
+                        <div class="step-reviews-list">
+                        ${sortedReviews.map(review => {
+                            const statusClass = review.status === 'open' ? 'open' : review.status === 'resolved' ? 'resolved' : 'fixed';
+                            const statusLabel = review.status === 'open' ? 'Открыто' : review.status === 'resolved' ? 'Исправлено' : 'Закрыто';
+                            const date = new Date(review.createdAt).toLocaleString('ru-RU');
+                            const resolvedDate = review.resolvedAt ? new Date(review.resolvedAt).toLocaleString('ru-RU') : '';
+                            
+                            return `
+                                <div class="step-review-item" data-review-id="${this.escapeHtml(review.id)}" data-status="${review.status}">
+                                    <div class="step-review-item-header">
+                                        <div class="step-review-item-meta">
+                                            <span class="step-review-author">${this.escapeHtml(review.author)}</span>
+                                            <span class="step-review-date">${date}</span>
+                                        </div>
+                                        <div class="step-review-item-actions">
+                                            <select class="step-review-status-select" data-review-id="${this.escapeHtml(review.id)}">
+                                                <option value="open" ${review.status === 'open' ? 'selected' : ''}>Открыто</option>
+                                                <option value="resolved" ${review.status === 'resolved' ? 'selected' : ''}>Исправлено</option>
+                                                <option value="fixed" ${review.status === 'fixed' ? 'selected' : ''}>Закрыто</option>
+                                            </select>
+                                            <button class="step-review-delete-btn" data-review-id="${this.escapeHtml(review.id)}" title="Удалить комментарий">×</button>
+                                        </div>
+                                    </div>
+                                    <div class="step-review-item-content">
+                                        <div class="step-review-comment">${this.escapeHtml(review.comment)}</div>
+                                        ${review.resolvedAt && review.resolvedBy ? `
+                                            <div class="step-review-resolved-info">
+                                                ${statusLabel} ${review.resolvedBy ? 'пользователем ' + this.escapeHtml(review.resolvedBy) : ''} ${resolvedDate ? 'в ' + resolvedDate : ''}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                        </div>
+                        <div class="step-reviews-add">
+                            <textarea 
+                                class="step-review-input" 
+                                data-step-id="${this.escapeHtml(stepId)}"
+                                placeholder="Добавить комментарий..."
+                                rows="2"
+                            ></textarea>
+                            <button class="step-review-add-btn" data-step-id="${this.escapeHtml(stepId)}" title="Добавить комментарий">Добавить</button>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="step-reviews-add">
+                        <textarea 
+                            class="step-review-input" 
+                            data-step-id="${this.escapeHtml(stepId)}"
+                            placeholder="Добавить комментарий..."
+                            rows="2"
+                        ></textarea>
+                        <button class="step-review-add-btn" data-step-id="${this.escapeHtml(stepId)}" title="Добавить комментарий">Добавить</button>
+                    </div>
+                `}
+            </div>
+        `;
     }
 
     static getErrorHtml(message: string): string {
@@ -191,8 +287,27 @@ export class TestCaseRenderer {
         `;
     }
 
-    static render(testCase: TestCase, documentUri?: string, testers?: string[]): string {
-        const stepsHtml = this.renderSteps(testCase.steps || []);
+    static render(testCase: TestCase, documentUri?: string, testers?: string[], tags?: string[]): string {
+        // Parse reviews from notes - notes is now a direct array
+        let reviews: ReviewComment[] = [];
+        if (testCase.notes && Array.isArray(testCase.notes)) {
+            reviews = testCase.notes;
+        } else if (testCase.notes && typeof testCase.notes === 'object' && testCase.notes.reviews) {
+            // Support old format for backward compatibility
+            reviews = Array.isArray(testCase.notes.reviews) ? testCase.notes.reviews : [];
+        }
+        
+        const stepsHtml = this.renderSteps(testCase.steps || [], reviews, testers || []);
+        
+        // Parse tags from string (comma-separated) or array
+        let currentTags: string[] = [];
+        if (testCase.tags) {
+            if (typeof testCase.tags === 'string') {
+                currentTags = testCase.tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+            } else if (Array.isArray(testCase.tags)) {
+                currentTags = testCase.tags;
+            }
+        }
 
         return `<!DOCTYPE html>
 <html lang="ru">
@@ -686,17 +801,21 @@ export class TestCaseRenderer {
         }
         
         .step-expected {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid var(--vscode-panel-border);
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 4px;
+            background-color: var(--vscode-textBlockQuote-background);
+            border-left: 3px solid var(--vscode-textBlockQuote-border);
             font-size: 13px;
         }
         
         .step-expected-label {
-            font-size: 13px;
-            color: var(--vscode-descriptionForeground);
-            font-weight: 500;
-            margin-bottom: 4px;
+            font-size: 12px;
+            color: var(--vscode-textBlockQuote-foreground);
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
         .step-expected-value {
@@ -708,8 +827,8 @@ export class TestCaseRenderer {
         .step-expected-value-editable {
             font-size: 13px;
             color: var(--vscode-foreground);
-            background-color: var(--vscode-input-background);
-            border: 1px solid var(--vscode-input-border);
+            background-color: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-textBlockQuote-border);
             padding: 8px;
             border-radius: 2px;
             font-family: var(--vscode-font-family);
@@ -722,8 +841,9 @@ export class TestCaseRenderer {
         }
         
         .step-expected-value-editable:focus {
-            outline: 1px solid var(--vscode-focusBorder);
+            outline: 2px solid var(--vscode-textBlockQuote-border);
             outline-offset: -1px;
+            border-color: var(--vscode-textBlockQuote-border);
         }
         
         .step-skip-reason {
@@ -738,395 +858,644 @@ export class TestCaseRenderer {
             font-style: italic;
         }
         
-        .llm-status-indicator {
-            transition: background-color 0.3s ease;
+        .tags-container {
+            margin-bottom: 16px;
         }
         
-        .llm-status-indicator.connected {
-            background-color: #4ec9b0 !important;
-            box-shadow: 0 0 8px rgba(78, 201, 176, 0.5);
+        .tags-input-wrapper {
+            position: relative;
+            margin-bottom: 12px;
         }
         
-        .llm-status-indicator.disconnected {
-            background-color: #f48771 !important;
-            box-shadow: 0 0 8px rgba(244, 135, 113, 0.5);
-        }
-        
-        .llm-refresh-btn:hover {
-            background-color: var(--vscode-button-hoverBackground) !important;
-            border-radius: 4px;
-        }
-        
-        .llm-refresh-btn:active {
-            transform: rotate(180deg);
-            transition: transform 0.3s ease;
-        }
-        
-        .llm-models-btn:hover {
-            background-color: var(--vscode-button-hoverBackground) !important;
-        }
-        
-        .llm-models-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .llm-models-item {
+        .tags-input {
+            width: 100%;
+            font-size: 14px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
             padding: 6px 8px;
-            margin: 4px 0;
-            background-color: var(--vscode-editor-inactiveSelectionBackground);
-            border-radius: 4px;
-            font-size: 13px;
-        }
-        
-        .llm-models-loading {
-            color: var(--vscode-descriptionForeground);
-            font-style: italic;
-        }
-        
-        .llm-models-error {
-            color: var(--vscode-errorForeground);
-        }
-        
-        /* Chat styles - Cursor-like design */
-        .tab-content[data-tab="chat"].active {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            position: relative;
-            overflow: hidden;
-            background-color: var(--vscode-editor-background);
-        }
-        
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-            position: relative;
-        }
-        
-        .chat-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--vscode-panel-border);
-            background-color: var(--vscode-editor-background);
-            flex-shrink: 0;
-        }
-        
-        .chat-header-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--vscode-foreground);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .chat-header-actions {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .chat-header-button {
-            background: transparent;
-            border: none;
-            color: var(--vscode-foreground);
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            opacity: 0.7;
-            transition: opacity 0.2s ease, background-color 0.2s ease;
-        }
-        
-        .chat-header-button:hover {
-            opacity: 1;
-            background-color: var(--vscode-list-hoverBackground);
-        }
-        
-        .chat-messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-            scroll-behavior: smooth;
-        }
-        
-        .chat-message {
-            display: flex;
-            flex-direction: column;
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--vscode-panel-border);
-            transition: background-color 0.15s ease;
-        }
-        
-        .chat-message:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-        
-        .chat-message.user {
-            background-color: var(--vscode-editor-background);
-        }
-        
-        .chat-message.assistant {
-            background-color: var(--vscode-editor-background);
-        }
-        
-        .chat-message-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-        
-        .chat-message-role {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--vscode-foreground);
-        }
-        
-        .chat-message-role-icon {
-            width: 20px;
-            height: 20px;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: 600;
-            flex-shrink: 0;
-        }
-        
-        .chat-message.user .chat-message-role-icon {
-            background-color: var(--vscode-textLink-foreground);
-            color: var(--vscode-editor-background);
-        }
-        
-        .chat-message.assistant .chat-message-role-icon {
-            background-color: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-        }
-        
-        .chat-message-content {
-            font-size: 13px;
-            line-height: 1.6;
-            color: var(--vscode-foreground);
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            padding-left: 28px;
-        }
-        
-        .chat-input-container {
-            position: sticky;
-            bottom: 0;
-            background-color: var(--vscode-editor-background);
-            border-top: 1px solid var(--vscode-panel-border);
-            padding: 12px 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            flex-shrink: 0;
-            z-index: 10;
-        }
-        
-        .chat-input-top-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 4px;
-        }
-        
-        .chat-model-select {
-            flex-shrink: 0;
-            font-size: 12px;
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-dropdown-background);
-            border: 1px solid var(--vscode-dropdown-border);
-            padding: 4px 8px;
-            border-radius: 4px;
+            border-radius: 2px;
             font-family: var(--vscode-font-family);
-            cursor: pointer;
-            height: 24px;
+            box-sizing: border-box;
         }
         
-        .chat-model-select:focus {
+        .tags-input:focus {
             outline: 1px solid var(--vscode-focusBorder);
             outline-offset: -1px;
         }
         
-        .chat-input-row {
-            display: flex;
-            gap: 8px;
-            align-items: flex-end;
-            background-color: var(--vscode-input-background);
-            border: 1px solid var(--vscode-input-border);
-            border-radius: 6px;
-            padding: 8px;
-            transition: border-color 0.2s ease;
-        }
-        
-        .chat-input-row:focus-within {
-            border-color: var(--vscode-focusBorder);
-        }
-        
-        .chat-input-wrapper {
-            flex: 1;
-            position: relative;
-            display: flex;
-            align-items: flex-end;
-        }
-        
-        .chat-input {
-            width: 100%;
-            min-height: 24px;
+        .tags-autocomplete {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            border-radius: 2px;
+            margin-top: 2px;
             max-height: 200px;
-            font-size: 13px;
-            color: var(--vscode-foreground);
-            background-color: transparent;
-            border: none;
-            padding: 0;
-            border-radius: 0;
-            font-family: var(--vscode-font-family);
-            resize: none;
             overflow-y: auto;
-            line-height: 1.5;
-            outline: none;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
         
-        .chat-send-button {
-            flex-shrink: 0;
-            background-color: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
+        .tags-autocomplete.visible {
+            display: block;
+        }
+        
+        .tags-autocomplete-item {
+            padding: 6px 8px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 14px;
+            color: var(--vscode-foreground);
+            border-bottom: 1px solid var(--vscode-panel-border);
+        }
+        
+        .tags-autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        
+        .tags-autocomplete-item:hover,
+        .tags-autocomplete-item.selected {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        .tags-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .tag-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background-color: var(--vscode-textLink-foreground);
+            color: var(--vscode-editor-background);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 13px;
             font-weight: 500;
+        }
+        
+        .tag-text {
+            user-select: none;
+        }
+        
+        .tag-remove {
+            background: transparent;
+            border: none;
+            color: var(--vscode-editor-background);
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            padding: 0;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 2px;
+            transition: background-color 0.2s;
+        }
+        
+        .tag-remove:hover {
+            background-color: rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Step reviews styles */
+        .step-reviews {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--vscode-panel-border);
+        }
+        
+        .step-reviews-header {
+            margin-bottom: 12px;
+        }
+        
+        .step-reviews-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: transparent;
+            border: none;
+            padding: 4px 8px;
+            cursor: pointer;
+            color: var(--vscode-foreground);
+            font-size: 13px;
+            font-family: var(--vscode-font-family);
+            transition: background-color 0.2s;
+            border-radius: 2px;
+        }
+        
+        .step-reviews-toggle:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        .step-reviews-toggle-icon {
+            display: inline-block;
+            transition: transform 0.2s;
+            font-size: 10px;
+        }
+        
+        .step-reviews-toggle.expanded .step-reviews-toggle-icon {
+            transform: rotate(180deg);
+        }
+        
+        .step-reviews-count {
+            font-weight: 500;
+        }
+        
+        .step-reviews-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease, margin-bottom 0.3s ease;
+            max-height: 0;
+            opacity: 0;
+            margin-bottom: 0;
+        }
+        
+        .step-reviews-content.expanded {
+            max-height: 5000px;
+            opacity: 1;
+            margin-bottom: 12px;
+        }
+        
+        .step-reviews-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin-bottom: 0;
+        }
+        
+        .step-reviews-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .step-review-item {
+            background-color: var(--vscode-editor-inactiveSelectionBackground);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 4px;
+            padding: 12px;
+            transition: border-color 0.2s;
+        }
+        
+        .step-review-item[data-status="open"] {
+            border-left: 3px solid var(--vscode-textLink-foreground);
+        }
+        
+        .step-review-item[data-status="resolved"] {
+            border-left: 3px solid var(--vscode-inputValidation-infoForeground);
+        }
+        
+        .step-review-item[data-status="fixed"] {
+            border-left: 3px solid var(--vscode-descriptionForeground);
+            opacity: 0.8;
+        }
+        
+        .step-review-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .step-review-item-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .step-review-author {
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            font-size: 13px;
+        }
+        
+        .step-review-date {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+        }
+        
+        .step-review-item-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .step-review-status-select {
+            font-size: 12px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            padding: 4px 6px;
+            border-radius: 2px;
+            font-family: var(--vscode-font-family);
+            cursor: pointer;
+        }
+        
+        .step-review-delete-btn {
+            background-color: var(--vscode-inputValidation-errorBackground);
+            color: var(--vscode-inputValidation-errorForeground);
+            border: none;
+            padding: 4px 8px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            width: 24px;
             height: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background-color 0.2s ease, opacity 0.2s ease;
         }
         
-        .chat-send-button:hover:not(:disabled) {
-            background-color: var(--vscode-button-hoverBackground);
+        .step-review-delete-btn:hover {
+            opacity: 0.8;
         }
         
-        .chat-send-button:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
+        .step-review-item-content {
+            margin-top: 8px;
         }
         
-        .chat-loading {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--vscode-descriptionForeground);
-            font-size: 13px;
-            padding: 8px 16px;
-        }
-        
-        .chat-loading-dots {
-            display: inline-flex;
-            gap: 4px;
-        }
-        
-        .chat-loading-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background-color: var(--vscode-descriptionForeground);
-            animation: chat-loading-pulse 1.4s ease-in-out infinite;
-        }
-        
-        .chat-loading-dot:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-        
-        .chat-loading-dot:nth-child(3) {
-            animation-delay: 0.4s;
-        }
-        
-        @keyframes chat-loading-pulse {
-            0%, 80%, 100% {
-                opacity: 0.3;
-                transform: scale(0.8);
-            }
-            40% {
-                opacity: 1;
-                transform: scale(1);
-            }
-        }
-        
-        .chat-empty {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: var(--vscode-descriptionForeground);
-            font-size: 13px;
-            padding: 40px 20px;
-            text-align: center;
-        }
-        
-        .chat-empty-icon {
-            font-size: 48px;
-            margin-bottom: 16px;
-            opacity: 0.5;
-        }
-        
-        .chat-empty-title {
-            font-size: 15px;
-            font-weight: 600;
+        .step-review-comment {
+            font-size: 14px;
             color: var(--vscode-foreground);
+            white-space: pre-wrap;
+            line-height: 1.6;
             margin-bottom: 8px;
         }
         
-        .chat-empty-description {
-            font-size: 13px;
+        .step-review-resolved-info {
+            font-size: 12px;
             color: var(--vscode-descriptionForeground);
-            max-width: 400px;
+            font-style: italic;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--vscode-panel-border);
         }
         
-        .chat-message-actions {
+        .step-reviews-add {
             display: flex;
+            flex-direction: column;
             gap: 8px;
-            margin-top: 12px;
-            padding-left: 28px;
+        }
+        
+        .step-review-input {
+            font-size: 14px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            padding: 8px;
+            border-radius: 2px;
+            font-family: var(--vscode-font-family);
+            width: 100%;
+            resize: vertical;
+            white-space: pre-wrap;
+            box-sizing: border-box;
+        }
+        
+        .step-review-input:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+        
+        .step-review-add-btn {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            align-self: flex-start;
+        }
+        
+        .step-review-add-btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        
+        /* Review styles */
+        .step-review-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-left: 8px;
+            transition: background-color 0.2s;
+        }
+        
+        .step-review-indicator:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        .step-review-indicator.has-open {
+            color: var(--vscode-textLink-foreground);
+            font-weight: 600;
+        }
+        
+        .step-review-indicator.has-resolved {
+            color: var(--vscode-inputValidation-infoForeground);
+            font-weight: 600;
+        }
+        
+        .step-review-indicator.has-resolved::before {
+            content: '✓';
+            display: inline-block;
+            margin-right: 4px;
+            font-size: 14px;
+            line-height: 1;
+        }
+        
+        .step-review-indicator.has-fixed {
+            color: var(--vscode-inputValidation-infoForeground);
+            font-weight: 600;
+            opacity: 0.8;
+        }
+        
+        .step-review-indicator.has-fixed::before {
+            content: '✓';
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: var(--vscode-inputValidation-infoBackground);
+            color: var(--vscode-inputValidation-infoForeground);
+            font-size: 11px;
+            margin-right: 4px;
+            font-weight: bold;
+        }
+        
+        .review-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        
+        .review-stats {
+            display: flex;
+            gap: 24px;
             flex-wrap: wrap;
         }
         
-        .chat-action-button {
-            background-color: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-            border: 1px solid var(--vscode-button-border);
-            padding: 4px 12px;
-            border-radius: 4px;
+        .review-stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+        
+        .review-stat-label {
+            color: var(--vscode-descriptionForeground);
+        }
+        
+        .review-stat-value {
+            font-weight: 600;
+            color: var(--vscode-foreground);
+        }
+        
+        .review-stat-value.open {
+            color: var(--vscode-textLink-foreground);
+        }
+        
+        .review-stat-value.resolved {
+            color: var(--vscode-inputValidation-infoForeground);
+        }
+        
+        .review-stat-value.fixed {
+            color: var(--vscode-inputValidation-infoForeground);
+            opacity: 0.7;
+        }
+        
+        .review-filters {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .review-filter-select {
+            font-size: 13px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            padding: 4px 8px;
+            border-radius: 2px;
+            font-family: var(--vscode-font-family);
             cursor: pointer;
+        }
+        
+        .review-filter-select:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+        
+        .review-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .review-item {
+            background-color: var(--vscode-editor-inactiveSelectionBackground);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 4px;
+            padding: 16px;
+            transition: border-color 0.2s;
+        }
+        
+        .review-item[data-status="open"] {
+            border-left: 3px solid var(--vscode-textLink-foreground);
+        }
+        
+        .review-item[data-status="resolved"] {
+            border-left: 3px solid var(--vscode-inputValidation-infoForeground);
+        }
+        
+        .review-item[data-status="fixed"] {
+            border-left: 3px solid var(--vscode-descriptionForeground);
+            opacity: 0.8;
+        }
+        
+        .review-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .review-item-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .review-step-badge {
+            background-color: var(--vscode-textLink-foreground);
+            color: var(--vscode-editor-background);
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .review-author {
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            font-size: 13px;
+        }
+        
+        .review-date {
             font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+        }
+        
+        .review-item-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .review-status-select {
+            font-size: 12px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            padding: 4px 6px;
+            border-radius: 2px;
+            font-family: var(--vscode-font-family);
+            cursor: pointer;
+        }
+        
+        .review-delete-btn {
+            background-color: var(--vscode-inputValidation-errorBackground);
+            color: var(--vscode-inputValidation-errorForeground);
+            border: none;
+            padding: 4px 8px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .review-delete-btn:hover {
+            opacity: 0.8;
+        }
+        
+        .review-item-content {
+            margin-top: 8px;
+        }
+        
+        .review-comment {
+            font-size: 14px;
+            color: var(--vscode-foreground);
+            white-space: pre-wrap;
+            line-height: 1.6;
+            margin-bottom: 8px;
+        }
+        
+        .review-resolved-info {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            font-style: italic;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--vscode-panel-border);
+        }
+        
+        .review-add-section {
+            background-color: var(--vscode-editor-inactiveSelectionBackground);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 4px;
+            padding: 16px;
+        }
+        
+        .review-add-header {
+            margin-bottom: 12px;
+        }
+        
+        .review-add-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+        }
+        
+        .review-add-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .review-add-step-select {
+            font-size: 14px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            padding: 6px 8px;
+            border-radius: 2px;
+            font-family: var(--vscode-font-family);
+            cursor: pointer;
+        }
+        
+        .review-add-comment-input {
+            font-size: 14px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            padding: 8px;
+            border-radius: 2px;
+            font-family: var(--vscode-font-family);
+            width: 100%;
+            min-height: 80px;
+            resize: vertical;
+            white-space: pre-wrap;
+            box-sizing: border-box;
+        }
+        
+        .review-add-comment-input:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+        
+        .review-add-btn {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 13px;
             font-weight: 500;
-            transition: background-color 0.2s ease, border-color 0.2s ease;
+            align-self: flex-start;
         }
         
-        .chat-action-button:hover:not(:disabled) {
-            background-color: var(--vscode-button-secondaryHoverBackground);
-            border-color: var(--vscode-button-hoverBorder);
-        }
-        
-        .chat-action-button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        .review-add-btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
         }
     </style>
 </head>
@@ -1134,8 +1503,6 @@ export class TestCaseRenderer {
     <div class="container">
         <div class="tabs">
             <button class="tab active" data-tab="viewer">Viewer</button>
-            <button class="tab" data-tab="chat">Chat</button>
-            <button class="tab" data-tab="llm">LLM</button>
         </div>
         
         <div class="tab-content active" data-tab="viewer">
@@ -1241,75 +1608,32 @@ export class TestCaseRenderer {
                 placeholder="Предусловия для выполнения тест-кейса"
             >${this.escapeHtml(testCase.preconditions || '')}</textarea>
             
+            <div class="viewer-section-title">Теги</div>
+            <div class="tags-container">
+                <div class="tags-input-wrapper">
+                    <input 
+                        type="text" 
+                        class="tags-input" 
+                        id="tags-input" 
+                        placeholder="Введите тег для поиска или создания нового"
+                        autocomplete="off"
+                    />
+                    <div class="tags-autocomplete" id="tags-autocomplete"></div>
+                </div>
+                <div class="tags-list" id="tags-list">
+                    ${currentTags.map(tag => `
+                        <span class="tag-item">
+                            <span class="tag-text">${this.escapeHtml(tag)}</span>
+                            <button class="tag-remove" data-tag="${this.escapeHtml(tag)}" title="Удалить тег">×</button>
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+            
             <div class="viewer-steps">
                 <div class="viewer-steps-title">Шаги тестирования</div>
                 <div class="steps-container">
                     ${stepsHtml || '<div class="empty">Нет шагов тестирования</div>'}
-                </div>
-            </div>
-        </div>
-        
-        <div class="tab-content" data-tab="chat">
-            <div class="chat-container">
-                <div class="chat-header">
-                    <div class="chat-header-title">
-                        <span>💬</span>
-                        <span>Чат LLM для тест-кейсов</span>
-                    </div>
-                    <div class="chat-header-actions">
-                        <button class="chat-header-button" id="chat-new-button" title="Новый чат">➕</button>
-                        <button class="chat-header-button" id="chat-menu-button" title="Меню">⋯</button>
-                    </div>
-                </div>
-                <div class="chat-messages" id="chat-messages">
-                    <div class="chat-empty">
-                        <div class="chat-empty-icon">💬</div>
-                        <div class="chat-empty-title">Начните новый диалог</div>
-                        <div class="chat-empty-description">Задайте вопрос или попросите создать тест-кейс. LLM поможет вам с созданием и редактированием тест-кейсов.</div>
-                    </div>
-                </div>
-                <div class="chat-input-container">
-                    <div class="chat-input-top-row">
-                        <select class="chat-model-select" id="chat-model-select">
-                            <option value="">Выберите модель...</option>
-                        </select>
-                    </div>
-                    <div class="chat-input-row">
-                        <div class="chat-input-wrapper">
-                            <textarea 
-                                class="chat-input" 
-                                id="chat-input" 
-                                placeholder="Введите сообщение..."
-                                rows="1"
-                            ></textarea>
-                        </div>
-                        <button class="chat-send-button" id="chat-send-button" disabled>Отправить</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="tab-content" data-tab="llm">
-            <div class="section">
-                <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
-                    <span>LLM</span>
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <div id="llm-status" class="llm-status-indicator" style="width: 12px; height: 12px; border-radius: 50%; background-color: var(--vscode-descriptionForeground);" title="Статус подключения"></div>
-                        <button id="llm-refresh-btn" class="llm-refresh-btn" title="Обновить статус подключения" style="background: transparent; border: none; cursor: pointer; color: var(--vscode-foreground); padding: 4px 8px; display: flex; align-items: center; justify-content: center;">
-                            <span style="font-size: 16px;">🔄</span>
-                        </button>
-                    </div>
-                </div>
-                <div style="padding: 20px; color: var(--vscode-descriptionForeground);">
-                    <div id="llm-status-text" style="margin-bottom: 12px;">Проверка подключения...</div>
-                    <div style="font-size: 12px; margin-bottom: 16px;">Используйте иконку обновления для проверки подключения к LLM серверу</div>
-                    <button id="llm-models-btn" class="llm-models-btn" style="background-color: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500;">
-                        Список моделей
-                    </button>
-                    <div id="llm-models-list" style="margin-top: 16px; display: none;">
-                        <div style="font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--vscode-foreground);">Доступные модели:</div>
-                        <div id="llm-models-content" style="color: var(--vscode-foreground);"></div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -1599,12 +1923,8 @@ export class TestCaseRenderer {
             const tabContents = document.querySelectorAll('.tab-content');
             
             tabs.forEach(tab => {
-                tab.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
+                tab.addEventListener('click', function() {
                     const targetTab = this.getAttribute('data-tab');
-                    if (!targetTab) return;
                     
                     // Remove active class from all tabs and contents
                     tabs.forEach(t => t.classList.remove('active'));
@@ -1619,597 +1939,336 @@ export class TestCaseRenderer {
                 });
             });
             
-            // Handle LLM refresh button
-            const llmRefreshBtn = document.getElementById('llm-refresh-btn');
-            const llmStatusIndicator = document.getElementById('llm-status');
-            const llmStatusText = document.getElementById('llm-status-text');
+            // Handle tags input with autocomplete
+            const tagsInput = document.getElementById('tags-input');
+            const tagsAutocomplete = document.getElementById('tags-autocomplete');
+            const tagsList = document.getElementById('tags-list');
+            const currentTags = ${JSON.stringify(currentTags)};
+            const availableTags = ${JSON.stringify(tags || [])};
+            let selectedAutocompleteIndex = -1;
+            let filteredTags = [];
             
-            if (llmRefreshBtn) {
-                llmRefreshBtn.addEventListener('click', function() {
-                    vscode.postMessage({ command: 'checkLlmConnection' });
+            function updateTagsField() {
+                const tagItems = tagsList.querySelectorAll('.tag-item .tag-text');
+                const tagsArray = Array.from(tagItems).map(item => item.textContent.trim()).filter(t => t.length > 0);
+                const tagsValue = tagsArray.join(', ');
+                vscode.postMessage({
+                    command: 'updateField',
+                    field: 'tags',
+                    value: tagsValue
                 });
             }
             
-            // Handle LLM models button
-            const llmModelsBtn = document.getElementById('llm-models-btn');
-            const llmModelsList = document.getElementById('llm-models-list');
-            const llmModelsContent = document.getElementById('llm-models-content');
+            function addTag(tagText) {
+                if (!tagText || tagText.trim().length === 0) return;
+                
+                const trimmedTag = tagText.trim();
+                const existingTags = Array.from(tagsList.querySelectorAll('.tag-item .tag-text')).map(item => item.textContent.trim());
+                
+                if (existingTags.includes(trimmedTag)) {
+                    return; // Tag already exists
+                }
+                
+                const tagItem = document.createElement('span');
+                tagItem.className = 'tag-item';
+                const escapedTag = trimmedTag.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                tagItem.innerHTML = '<span class="tag-text">' + escapedTag + '</span><button class="tag-remove" data-tag="' + escapedTag + '" title="Удалить тег">×</button>';
+                
+                const removeBtn = tagItem.querySelector('.tag-remove');
+                if (removeBtn) {
+                    removeBtn.addEventListener('click', function() {
+                        tagItem.remove();
+                        updateTagsField();
+                    });
+                }
+                
+                tagsList.appendChild(tagItem);
+                updateTagsField();
+                
+                // If tag is not in available tags, add it to config
+                if (!availableTags.includes(trimmedTag)) {
+                    vscode.postMessage({
+                        command: 'addTag',
+                        tag: trimmedTag
+                    });
+                }
+                
+                // Clear input and hide autocomplete
+                tagsInput.value = '';
+                hideAutocomplete();
+            }
             
-            if (llmModelsBtn) {
-                llmModelsBtn.addEventListener('click', function() {
-                    if (llmModelsBtn.disabled) return;
-                    
-                    llmModelsBtn.disabled = true;
-                    if (llmModelsContent) {
-                        llmModelsContent.innerHTML = '<div class="llm-models-loading">Загрузка моделей...</div>';
-                        llmModelsList.style.display = 'block';
+            function filterTags(query) {
+                if (!query || query.trim().length === 0) {
+                    return availableTags.filter(tag => !currentTags.includes(tag));
+                }
+                
+                const lowerQuery = query.toLowerCase();
+                return availableTags.filter(tag => {
+                    const lowerTag = tag.toLowerCase();
+                    return lowerTag.includes(lowerQuery) && !currentTags.includes(tag);
+                });
+            }
+            
+            function showAutocomplete(tags) {
+                if (!tagsAutocomplete) return;
+                
+                filteredTags = tags;
+                selectedAutocompleteIndex = -1;
+                
+                if (tags.length === 0) {
+                    tagsAutocomplete.classList.remove('visible');
+                    return;
+                }
+                
+                tagsAutocomplete.innerHTML = tags.map((tag, index) => {
+                    const escapedTag = tag.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                    return '<div class="tags-autocomplete-item" data-index="' + index + '" data-tag="' + escapedTag + '">' + escapedTag + '</div>';
+                }).join('');
+                
+                tagsAutocomplete.classList.add('visible');
+                
+                // Add click handlers
+                const items = tagsAutocomplete.querySelectorAll('.tags-autocomplete-item');
+                items.forEach(item => {
+                    item.addEventListener('click', function() {
+                        const tag = this.getAttribute('data-tag');
+                        addTag(tag);
+                    });
+                });
+            }
+            
+            function hideAutocomplete() {
+                if (tagsAutocomplete) {
+                    tagsAutocomplete.classList.remove('visible');
+                    selectedAutocompleteIndex = -1;
+                }
+            }
+            
+            function updateAutocompleteSelection() {
+                const items = tagsAutocomplete.querySelectorAll('.tags-autocomplete-item');
+                items.forEach((item, index) => {
+                    if (index === selectedAutocompleteIndex) {
+                        item.classList.add('selected');
+                        item.scrollIntoView({ block: 'nearest' });
+                    } else {
+                        item.classList.remove('selected');
                     }
-                    
-                    vscode.postMessage({ command: 'getLlmModels' });
                 });
             }
             
-            // Handle LLM connection status updates
-            window.addEventListener('message', event => {
-                const message = event.data;
-                if (message.command === 'llmConnectionStatus') {
-                    const isConnected = message.connected;
-                    const statusText = message.statusText || '';
-                    
-                    if (llmStatusIndicator) {
-                        llmStatusIndicator.classList.remove('connected', 'disconnected');
-                        if (isConnected) {
-                            llmStatusIndicator.classList.add('connected');
-                        } else {
-                            llmStatusIndicator.classList.add('disconnected');
+            if (tagsInput) {
+                tagsInput.addEventListener('input', function(e) {
+                    const query = e.target.value;
+                    const filtered = filterTags(query);
+                    showAutocomplete(filtered);
+                });
+                
+                tagsInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        if (filteredTags.length > 0) {
+                            selectedAutocompleteIndex = Math.min(selectedAutocompleteIndex + 1, filteredTags.length - 1);
+                            updateAutocompleteSelection();
                         }
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        if (filteredTags.length > 0) {
+                            selectedAutocompleteIndex = Math.max(selectedAutocompleteIndex - 1, -1);
+                            updateAutocompleteSelection();
+                        }
+                    } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (selectedAutocompleteIndex >= 0 && selectedAutocompleteIndex < filteredTags.length) {
+                            addTag(filteredTags[selectedAutocompleteIndex]);
+                        } else {
+                            const tagText = tagsInput.value.trim();
+                            if (tagText.length > 0) {
+                                addTag(tagText);
+                            }
+                        }
+                    } else if (e.key === 'Escape') {
+                        hideAutocomplete();
                     }
-                    
-                    if (llmStatusText) {
-                        llmStatusText.textContent = statusText;
+                });
+                
+                tagsInput.addEventListener('blur', function() {
+                    // Delay to allow click on autocomplete item
+                    setTimeout(() => {
+                        hideAutocomplete();
+                    }, 200);
+                });
+                
+                tagsInput.addEventListener('focus', function() {
+                    const query = tagsInput.value;
+                    const filtered = filterTags(query);
+                    showAutocomplete(filtered);
+                });
+            }
+            
+            // Handle remove buttons for existing tags
+            const tagRemoveButtons = document.querySelectorAll('.tag-remove');
+            tagRemoveButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const tagItem = btn.closest('.tag-item');
+                    if (tagItem) {
+                        tagItem.remove();
+                        updateTagsField();
+                    }
+                });
+            });
+            
+            // Handle step review deletion - use event delegation with capture phase (register FIRST)
+            document.addEventListener('click', function(e) {
+                if (!e || !e.target) return;
+                
+                const target = e.target;
+                let deleteBtn = null;
+                
+                // Check if target is the button itself
+                if (target.nodeType === 1 && target.classList && target.classList.contains('step-review-delete-btn')) {
+                    deleteBtn = target;
+                } else if (target.closest) {
+                    // Check if target is inside the button
+                    deleteBtn = target.closest('.step-review-delete-btn');
+                } else {
+                    // Fallback: traverse up the DOM tree
+                    let element = target.parentElement;
+                    while (element && element !== document.body) {
+                        if (element.classList && element.classList.contains('step-review-delete-btn')) {
+                            deleteBtn = element;
+                            break;
+                        }
+                        element = element.parentElement;
                     }
                 }
                 
-                if (message.command === 'llmModelsList') {
-                    if (llmModelsBtn) {
-                        llmModelsBtn.disabled = false;
-                    }
-                    
-                    if (llmModelsContent) {
-                        if (message.error) {
-                            const errorText = String(message.error).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                            llmModelsContent.innerHTML = '<div class="llm-models-error">Ошибка: ' + errorText + '</div>';
-                        } else if (message.models && message.models.length > 0) {
-                            const modelsHtml = message.models.map(function(model) {
-                                const modelText = String(model).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                                return '<div class="llm-models-item">' + modelText + '</div>';
-                            }).join('');
-                            llmModelsContent.innerHTML = modelsHtml;
-                        } else {
-                            llmModelsContent.innerHTML = '<div class="llm-models-loading">Модели не найдены</div>';
+                if (deleteBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    const reviewId = deleteBtn.getAttribute('data-review-id');
+                    if (reviewId) {
+                        if (confirm('Удалить этот комментарий?')) {
+                            console.log('Sending deleteReview command with reviewId:', reviewId);
+                            vscode.postMessage({
+                                command: 'deleteReview',
+                                reviewId: reviewId
+                            });
                         }
+                    } else {
+                        console.error('No reviewId found on delete button');
                     }
-                    
-                    if (llmModelsList) {
-                        llmModelsList.style.display = 'block';
+                    return false;
+                }
+            }, true); // Use capture phase to catch event early
+            
+            // Handle step reviews toggle (expand/collapse) - use event delegation
+            document.addEventListener('click', function(e) {
+                const target = e.target;
+                // Skip if this is a delete button click
+                if (target && (target.classList.contains('step-review-delete-btn') || target.closest('.step-review-delete-btn'))) {
+                    return;
+                }
+                if (target && target.closest('.step-reviews-toggle')) {
+                    const toggle = target.closest('.step-reviews-toggle');
+                    const stepId = toggle.getAttribute('data-step-id');
+                    const reviewsContent = document.querySelector('.step-reviews-content[data-step-id="' + stepId + '"]');
+                    if (reviewsContent) {
+                        const isExpanded = reviewsContent.classList.contains('expanded');
+                        if (isExpanded) {
+                            reviewsContent.classList.remove('expanded');
+                            reviewsContent.classList.add('collapsed');
+                            toggle.classList.remove('expanded');
+                        } else {
+                            reviewsContent.classList.remove('collapsed');
+                            reviewsContent.classList.add('expanded');
+                            toggle.classList.add('expanded');
+                        }
                     }
                 }
             });
             
-            // Check connection status when LLM tab is opened
-            const llmTab = document.querySelector('.tab[data-tab="llm"]');
-            if (llmTab) {
-                llmTab.addEventListener('click', function() {
-                    setTimeout(() => {
-                        vscode.postMessage({ command: 'checkLlmConnection' });
-                    }, 100);
-                });
-            }
-            
-            // Initial status check if LLM tab is already active (shouldn't happen, but just in case)
-            const activeLlmTab = document.querySelector('.tab[data-tab="llm"].active');
-            if (activeLlmTab) {
-                setTimeout(() => {
-                    vscode.postMessage({ command: 'checkLlmConnection' });
-                }, 200);
-            }
-            
-            // Chat functionality
-            const chatMessages = document.getElementById('chat-messages');
-            const chatInput = document.getElementById('chat-input');
-            const chatSendButton = document.getElementById('chat-send-button');
-            const chatModelSelect = document.getElementById('chat-model-select');
-            
-            let chatHistory = [];
-            
-            // Auto-resize textarea
-            if (chatInput) {
-                chatInput.addEventListener('input', function() {
-                    this.style.height = 'auto';
-                    this.style.height = Math.min(this.scrollHeight, 200) + 'px';
-                    
-                    // Enable/disable send button
-                    if (chatSendButton) {
-                        chatSendButton.disabled = !this.value.trim() || !chatModelSelect.value;
+            // Handle step review status changes - use event delegation
+            document.addEventListener('change', function(e) {
+                const target = e.target;
+                if (target && target.classList.contains('step-review-status-select')) {
+                    const reviewId = target.getAttribute('data-review-id');
+                    const newStatus = target.value;
+                    if (reviewId) {
+                        vscode.postMessage({
+                            command: 'updateReviewStatus',
+                            reviewId: reviewId,
+                            status: newStatus
+                        });
                     }
-                });
-                
-                // Handle Enter key (Shift+Enter for new line, Enter to send)
-                chatInput.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter' && !e.shiftKey) {
+                }
+            });
+            
+            // Handle add review from step - use event delegation
+            document.addEventListener('click', function(e) {
+                const target = e.target;
+                if (target && target.classList.contains('step-review-add-btn')) {
+                    const stepId = target.getAttribute('data-step-id');
+                    const reviewsSection = target.closest('.step-reviews');
+                    if (reviewsSection) {
+                        const commentInput = reviewsSection.querySelector('.step-review-input');
+                        if (commentInput) {
+                            const comment = commentInput.value.trim();
+                            if (!comment) {
+                                alert('Введите комментарий');
+                                return;
+                            }
+                            
+                            vscode.postMessage({
+                                command: 'addReview',
+                                stepId: stepId,
+                                comment: comment
+                            });
+                            
+                            commentInput.value = '';
+                            
+                            // Auto-expand reviews content after adding comment
+                            const reviewsContent = reviewsSection.querySelector('.step-reviews-content');
+                            const toggle = reviewsSection.querySelector('.step-reviews-toggle');
+                            if (reviewsContent && toggle) {
+                                reviewsContent.classList.remove('collapsed');
+                                reviewsContent.classList.add('expanded');
+                                toggle.classList.add('expanded');
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Handle Enter key in step review input (Ctrl+Enter to submit) - use event delegation
+            document.addEventListener('keydown', function(e) {
+                const target = e.target;
+                if (target && target.classList.contains('step-review-input')) {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                         e.preventDefault();
-                        if (chatSendButton && !chatSendButton.disabled) {
-                            chatSendButton.click();
-                        }
-                    }
-                });
-            }
-            
-            // Load models when chat tab is opened
-            const chatTab = document.querySelector('.tab[data-tab="chat"]');
-            if (chatTab) {
-                chatTab.addEventListener('click', function() {
-                    setTimeout(() => {
-                        vscode.postMessage({ command: 'getLlmModels' });
-                    }, 100);
-                });
-            }
-            
-            // Handle new chat button
-            const chatNewButton = document.getElementById('chat-new-button');
-            if (chatNewButton) {
-                chatNewButton.addEventListener('click', function() {
-                    if (chatMessages) {
-                        chatMessages.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">💬</div><div class="chat-empty-title">Начните новый диалог</div><div class="chat-empty-description">Задайте вопрос или попросите создать тест-кейс. LLM поможет вам с созданием и редактированием тест-кейсов.</div></div>';
-                        chatHistory = [];
-                        
-                        // Clear saved history
-                        vscode.postMessage({
-                            command: 'saveChatHistory',
-                            history: []
-                        });
-                    }
-                });
-            }
-            
-            // Handle menu button (placeholder)
-            const chatMenuButton = document.getElementById('chat-menu-button');
-            if (chatMenuButton) {
-                chatMenuButton.addEventListener('click', function() {
-                    // TODO: Add menu functionality
-                });
-            }
-            
-            // Handle model selection change
-            if (chatModelSelect) {
-                chatModelSelect.addEventListener('change', function() {
-                    const selectedModel = this.value;
-                    if (chatSendButton && chatInput) {
-                        chatSendButton.disabled = !chatInput.value.trim() || !selectedModel;
-                    }
-                    // Save selected model
-                    if (selectedModel) {
-                        vscode.postMessage({
-                            command: 'saveChatModel',
-                            model: selectedModel
-                        });
-                    }
-                });
-            }
-            
-            // Handle send button
-            if (chatSendButton) {
-                chatSendButton.addEventListener('click', function() {
-                    if (this.disabled) return;
-                    
-                    const message = chatInput.value.trim();
-                    const model = chatModelSelect.value;
-                    
-                    if (!message || !model) return;
-                    
-                    // Add user message to chat
-                    addChatMessage('user', message);
-                    
-                    // Add to history immediately
-                    chatHistory.push({ role: 'user', content: message });
-                    
-                    // Save history
-                    vscode.postMessage({
-                        command: 'saveChatHistory',
-                        history: chatHistory
-                    });
-                    
-                    // Clear input
-                    chatInput.value = '';
-                    chatInput.style.height = 'auto';
-                    this.disabled = true;
-                    
-                    // Show loading indicator
-                    const loadingId = addChatMessage('assistant', '', true);
-                    
-                    // Send message to extension
-                    vscode.postMessage({
-                        command: 'sendChatMessage',
-                        message: message,
-                        model: model,
-                        history: chatHistory
-                    });
-                });
-            }
-            
-            function addChatMessage(role, content, isLoading = false, testCaseJson = null, fileActions = null) {
-                if (!chatMessages) return null;
-                
-                // Remove empty message if exists
-                const emptyMessage = chatMessages.querySelector('.chat-empty');
-                if (emptyMessage) {
-                    emptyMessage.remove();
-                }
-                
-                const messageId = 'msg-' + Date.now();
-                const messageDiv = document.createElement('div');
-                messageDiv.className = 'chat-message ' + role;
-                messageDiv.id = messageId;
-                
-                // Create message header
-                const headerDiv = document.createElement('div');
-                headerDiv.className = 'chat-message-header';
-                
-                const iconDiv = document.createElement('div');
-                iconDiv.className = 'chat-message-role-icon';
-                iconDiv.textContent = role === 'user' ? 'U' : 'AI';
-                
-                const roleDiv = document.createElement('div');
-                roleDiv.className = 'chat-message-role';
-                roleDiv.textContent = role === 'user' ? 'Вы' : 'Ассистент';
-                
-                headerDiv.appendChild(iconDiv);
-                headerDiv.appendChild(roleDiv);
-                
-                // Create message content
-                const contentDiv = document.createElement('div');
-                contentDiv.className = 'chat-message-content';
-                
-                if (isLoading) {
-                    contentDiv.innerHTML = '<div class="chat-loading"><span>Генерация ответа</span><div class="chat-loading-dots"><span class="chat-loading-dot"></span><span class="chat-loading-dot"></span><span class="chat-loading-dot"></span></div></div>';
-                } else {
-                    contentDiv.textContent = content;
-                }
-                
-                messageDiv.appendChild(headerDiv);
-                messageDiv.appendChild(contentDiv);
-                
-                // Add action buttons
-                if (role === 'assistant' && !isLoading) {
-                    const actionsDiv = document.createElement('div');
-                    actionsDiv.className = 'chat-message-actions';
-                    
-                    // Add create test case button if JSON is detected
-                    if (testCaseJson) {
-                        const createButton = document.createElement('button');
-                        createButton.className = 'chat-action-button';
-                        createButton.textContent = 'Создать тест-кейс';
-                        createButton.setAttribute('data-test-case-json', JSON.stringify(testCaseJson));
-                        createButton.addEventListener('click', function() {
-                            const jsonData = this.getAttribute('data-test-case-json');
-                            if (jsonData) {
-                                vscode.postMessage({
-                                    command: 'createTestCaseFromJson',
-                                    testCaseJson: JSON.parse(jsonData)
-                                });
-                            }
-                        });
-                        actionsDiv.appendChild(createButton);
-                    }
-                    
-                    // Add file action buttons if LLM provided actions
-                    if (fileActions && Array.isArray(fileActions) && fileActions.length > 0) {
-                        fileActions.forEach(function(action) {
-                            if (action.action === 'create_file') {
-                                const createFileButton = document.createElement('button');
-                                createFileButton.className = 'chat-action-button';
-                                createFileButton.textContent = 'Создать файл: ' + (action.fileName || 'новый_файл.json');
-                                createFileButton.addEventListener('click', function() {
-                                    vscode.postMessage({
-                                        command: 'executeFileAction',
-                                        action: action.action,
-                                        data: action
-                                    });
-                                });
-                                actionsDiv.appendChild(createFileButton);
-                            } else if (action.action === 'update_file') {
-                                const updateFileButton = document.createElement('button');
-                                updateFileButton.className = 'chat-action-button';
-                                updateFileButton.textContent = 'Обновить текущий файл';
-                                updateFileButton.addEventListener('click', function() {
-                                    vscode.postMessage({
-                                        command: 'executeFileAction',
-                                        action: action.action,
-                                        data: action
-                                    });
-                                });
-                                actionsDiv.appendChild(updateFileButton);
-                            } else if (action.action === 'create_file_from_current') {
-                                const createFromCurrentButton = document.createElement('button');
-                                createFromCurrentButton.className = 'chat-action-button';
-                                createFromCurrentButton.textContent = 'Создать файл: ' + (action.fileName || 'новый_файл.json');
-                                createFromCurrentButton.addEventListener('click', function() {
-                                    vscode.postMessage({
-                                        command: 'executeFileAction',
-                                        action: action.action,
-                                        data: action
-                                    });
-                                });
-                                actionsDiv.appendChild(createFromCurrentButton);
-                            }
-                        });
-                    }
-                    
-                    if (actionsDiv.children.length > 0) {
-                        messageDiv.appendChild(actionsDiv);
-                    }
-                }
-                
-                chatMessages.appendChild(messageDiv);
-                
-                // Scroll to bottom
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-                
-                return messageId;
-            }
-            
-            function extractTestCaseJson(text) {
-                // Try to find JSON in the text (between code blocks or just JSON object)
-                // Look for code block with json marker
-                const backtick = String.fromCharCode(96);
-                const codeBlockMarker = backtick + backtick + backtick;
-                const codeBlockStart = text.indexOf(codeBlockMarker + 'json');
-                if (codeBlockStart !== -1) {
-                    const codeBlockEnd = text.indexOf(codeBlockMarker, codeBlockStart + 7);
-                    if (codeBlockEnd !== -1) {
-                        const jsonText = text.substring(codeBlockStart + 7, codeBlockEnd).trim();
-                        try {
-                            return JSON.parse(jsonText);
-                        } catch (e) {
-                            // Not valid JSON
-                        }
-                    }
-                }
-                
-                // Try to find JSON object directly - look for opening brace
-                const firstBrace = text.indexOf('{');
-                if (firstBrace !== -1) {
-                    // Try to find matching closing brace
-                    let braceCount = 0;
-                    let jsonEnd = -1;
-                    for (let i = firstBrace; i < text.length; i++) {
-                        if (text[i] === '{') braceCount++;
-                        if (text[i] === '}') {
-                            braceCount--;
-                            if (braceCount === 0) {
-                                jsonEnd = i;
-                                break;
-                            }
-                        }
-                    }
-                    
-                    if (jsonEnd !== -1) {
-                        try {
-                            const jsonText = text.substring(firstBrace, jsonEnd + 1);
-                            const parsed = JSON.parse(jsonText);
-                            // Check if it looks like a test case
-                            if (parsed.id && parsed.name && Array.isArray(parsed.steps)) {
-                                return parsed;
-                            }
-                        } catch (e) {
-                            // Not valid JSON
-                        }
-                    }
-                }
-                
-                return null;
-            }
-            
-            function updateChatMessage(messageId, content, testCaseJson = null, fileActions = null) {
-                const messageDiv = document.getElementById(messageId);
-                if (messageDiv) {
-                    const contentDiv = messageDiv.querySelector('.chat-message-content');
-                    if (contentDiv) {
-                        // Remove loading indicator if exists
-                        const loading = contentDiv.querySelector('.chat-loading');
-                        if (loading) {
-                            contentDiv.innerHTML = '';
-                        }
-                        contentDiv.textContent = content;
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
-                    }
-                    
-                    // Remove existing actions
-                    const existingActions = messageDiv.querySelector('.chat-message-actions');
-                    if (existingActions) {
-                        existingActions.remove();
-                    }
-                    
-                    // Add new action buttons
-                    if (testCaseJson || (fileActions && fileActions.length > 0)) {
-                        const actionsDiv = document.createElement('div');
-                        actionsDiv.className = 'chat-message-actions';
-                        
-                        // Add create test case button if JSON is detected
-                        if (testCaseJson) {
-                            const createButton = document.createElement('button');
-                            createButton.className = 'chat-action-button';
-                            createButton.textContent = 'Создать тест-кейс';
-                            createButton.setAttribute('data-test-case-json', JSON.stringify(testCaseJson));
-                            createButton.addEventListener('click', function() {
-                                const jsonData = this.getAttribute('data-test-case-json');
-                                if (jsonData) {
-                                    vscode.postMessage({
-                                        command: 'createTestCaseFromJson',
-                                        testCaseJson: JSON.parse(jsonData)
-                                    });
-                                }
+                        const stepId = target.getAttribute('data-step-id');
+                        const comment = target.value.trim();
+                        if (comment) {
+                            vscode.postMessage({
+                                command: 'addReview',
+                                stepId: stepId,
+                                comment: comment
                             });
-                            actionsDiv.appendChild(createButton);
-                        }
-                        
-                        // Add file action buttons if LLM provided actions
-                        if (fileActions && Array.isArray(fileActions) && fileActions.length > 0) {
-                            fileActions.forEach(function(action) {
-                                if (action.action === 'create_file') {
-                                    const createFileButton = document.createElement('button');
-                                    createFileButton.className = 'chat-action-button';
-                                    createFileButton.textContent = 'Создать файл: ' + (action.fileName || 'новый_файл.json');
-                                    createFileButton.addEventListener('click', function() {
-                                        vscode.postMessage({
-                                            command: 'executeFileAction',
-                                            action: action.action,
-                                            data: action
-                                        });
-                                    });
-                                    actionsDiv.appendChild(createFileButton);
-                                } else if (action.action === 'update_file') {
-                                    const updateFileButton = document.createElement('button');
-                                    updateFileButton.className = 'chat-action-button';
-                                    updateFileButton.textContent = 'Обновить текущий файл';
-                                    updateFileButton.addEventListener('click', function() {
-                                        vscode.postMessage({
-                                            command: 'executeFileAction',
-                                            action: action.action,
-                                            data: action
-                                        });
-                                    });
-                                    actionsDiv.appendChild(updateFileButton);
-                                } else if (action.action === 'create_file_from_current') {
-                                    const createFromCurrentButton = document.createElement('button');
-                                    createFromCurrentButton.className = 'chat-action-button';
-                                    createFromCurrentButton.textContent = 'Создать файл: ' + (action.fileName || 'новый_файл.json');
-                                    createFromCurrentButton.addEventListener('click', function() {
-                                        vscode.postMessage({
-                                            command: 'executeFileAction',
-                                            action: action.action,
-                                            data: action
-                                        });
-                                    });
-                                    actionsDiv.appendChild(createFromCurrentButton);
-                                }
-                            });
-                        }
-                        
-                        if (actionsDiv.children.length > 0) {
-                            messageDiv.appendChild(actionsDiv);
-                        }
-                    }
-                }
-            }
-            
-            // Handle chat messages from extension
-            window.addEventListener('message', event => {
-                const message = event.data;
-                
-                if (message.command === 'chatResponse') {
-                    const loadingMessage = chatMessages.querySelector('.chat-message.assistant .chat-loading');
-                    let testCaseJson = null;
-                    
-                    if (message.content && !message.error) {
-                        testCaseJson = extractTestCaseJson(message.content);
-                    }
-                    
-                    if (loadingMessage) {
-                        const messageDiv = loadingMessage.closest('.chat-message');
-                        if (messageDiv) {
-                            const messageId = messageDiv.id;
-                            if (message.error) {
-                                updateChatMessage(messageId, 'Ошибка: ' + message.error);
-                            } else {
-                                updateChatMessage(messageId, message.content || '', testCaseJson, message.fileActions);
-                            }
-                        }
-                    } else {
-                        addChatMessage('assistant', message.content || message.error || '', false, testCaseJson, message.fileActions);
-                    }
-                    
-                    // Update chat history
-                    if (message.content && !message.error) {
-                        chatHistory.push({ role: 'user', content: message.userMessage });
-                        chatHistory.push({ role: 'assistant', content: message.content });
-                        
-                        // Save chat history
-                        vscode.postMessage({
-                            command: 'saveChatHistory',
-                            history: chatHistory
-                        });
-                    }
-                    
-                    // Re-enable send button
-                    if (chatSendButton && chatInput && chatModelSelect) {
-                        chatSendButton.disabled = !chatInput.value.trim() || !chatModelSelect.value;
-                    }
-                }
-                
-                if (message.command === 'chatStateLoaded') {
-                    // Restore saved model
-                    if (message.model && chatModelSelect) {
-                        // Wait for models to be loaded first
-                        setTimeout(() => {
-                            if (chatModelSelect.querySelector('option[value="' + message.model + '"]')) {
-                                chatModelSelect.value = message.model;
-                                if (chatSendButton && chatInput) {
-                                    chatSendButton.disabled = !chatInput.value.trim() || !message.model;
-                                }
-                            }
-                        }, 500);
-                    }
-                    
-                    // Restore chat history
-                    if (message.history && Array.isArray(message.history) && message.history.length > 0) {
-                        chatHistory = message.history;
-                        
-                        // Re-render messages from history
-                        if (chatMessages) {
-                            const emptyMessage = chatMessages.querySelector('.chat-empty');
-                            if (emptyMessage) {
-                                emptyMessage.remove();
-                            }
+                            target.value = '';
                             
-                            // Render all messages from history
-                            message.history.forEach(function(msg) {
-                                if (msg.role === 'user' || msg.role === 'assistant') {
-                                    addChatMessage(msg.role, msg.content, false, null, null);
+                            // Auto-expand reviews content after adding comment
+                            const reviewsSection = target.closest('.step-reviews');
+                            if (reviewsSection) {
+                                const reviewsContent = reviewsSection.querySelector('.step-reviews-content');
+                                const toggle = reviewsSection.querySelector('.step-reviews-toggle');
+                                if (reviewsContent && toggle) {
+                                    reviewsContent.classList.remove('collapsed');
+                                    reviewsContent.classList.add('expanded');
+                                    toggle.classList.add('expanded');
                                 }
-                            });
-                            
-                            // Scroll to bottom
-                            chatMessages.scrollTop = chatMessages.scrollHeight;
-                        }
-                    }
-                }
-                
-                if (message.command === 'llmModelsList' && chatModelSelect) {
-                    // Update model select in chat tab
-                    const currentValue = chatModelSelect.value;
-                    chatModelSelect.innerHTML = '<option value="">Выберите модель...</option>';
-                    
-                    if (message.models && message.models.length > 0) {
-                        message.models.forEach(model => {
-                            const option = document.createElement('option');
-                            option.value = model;
-                            option.textContent = model;
-                            chatModelSelect.appendChild(option);
-                        });
-                        
-                        // Restore previous selection if it still exists
-                        if (currentValue) {
-                            const option = Array.from(chatModelSelect.options).find(opt => opt.value === currentValue);
-                            if (option) {
-                                chatModelSelect.value = currentValue;
                             }
                         }
-                    }
-                    
-                    // Update send button state
-                    if (chatSendButton && chatInput) {
-                        chatSendButton.disabled = !chatInput.value.trim() || !chatModelSelect.value;
                     }
                 }
             });
