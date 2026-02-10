@@ -10,7 +10,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onLanguage:json"
+    "onLanguage:json",
+    "onLanguage:markdown"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -28,6 +29,11 @@
         {
           "id": "testCaseViewer.sidebar",
           "name": "Test Case Viewer",
+          "type": "webview"
+        },
+        {
+          "id": "markdownTestCaseViewer.sidebar",
+          "name": "Markdown Test Case Viewer",
           "type": "webview"
         }
       ]
