@@ -1,3 +1,9 @@
+export interface MarkdownComment {
+    number: number;
+    comment: string;
+    status: string;
+}
+
 export interface MarkdownTestCase {
     title: string;
     metadata: {
@@ -17,7 +23,7 @@ export interface MarkdownTestCase {
     description?: string;
     preconditions?: string;
     steps: MarkdownTestStep[];
-    comments?: string[];
+    comments?: MarkdownComment[];
 }
 
 export interface MarkdownTestStep {
@@ -95,7 +101,7 @@ export class MarkdownTestCaseParser {
             }
 
             // Check if this is a table header row (if we're in a section with tables)
-            if (!inTable && line.startsWith('|') && (currentSection === 'Метаданные' || currentSection === 'Epic/Feature/Story' || currentSection === 'Шаги тестирования')) {
+            if (!inTable && line.startsWith('|') && (currentSection === 'Метаданные' || currentSection === 'Epic/Feature/Story' || currentSection === 'Шаги тестирования' || currentSection === 'Комментарии')) {
                 // Check if next line is a separator
                 if (i + 1 < lines.length) {
                     const nextLine = lines[i + 1].trim();
@@ -194,6 +200,26 @@ export class MarkdownTestCaseParser {
                     result.steps.push(step);
                 }
             }
+        } else if (section === 'Комментарии') {
+            // Find indices of columns
+            const numberIndex = headers.findIndex(h => h.toLowerCase().includes('№') || h.toLowerCase().includes('номер'));
+            const commentIndex = headers.findIndex(h => h.toLowerCase().includes('комментарий'));
+            const statusIndex = headers.findIndex(h => h.toLowerCase().includes('статус'));
+
+            for (const row of rows) {
+                if (!result.comments) {
+                    result.comments = [];
+                }
+                const comment: MarkdownComment = {
+                    number: numberIndex >= 0 && row[numberIndex] ? parseInt(row[numberIndex]) || result.comments.length + 1 : result.comments.length + 1,
+                    comment: commentIndex >= 0 && row[commentIndex] ? this._normalizeStepCell(row[commentIndex]) : '',
+                    status: statusIndex >= 0 && row[statusIndex] ? row[statusIndex].trim() : 'OPEN'
+                };
+                
+                if (comment.comment) {
+                    result.comments.push(comment);
+                }
+            }
         }
     }
 
@@ -234,16 +260,8 @@ export class MarkdownTestCaseParser {
                 result.preconditions = '';
             }
             result.preconditions += (result.preconditions ? '\n' : '') + line;
-        } else if (section === 'Комментарии') {
-            if (!result.comments) {
-                result.comments = [];
-            }
-            // Remove list markers
-            const comment = line.replace(/^[-*]\s*/, '').trim();
-            if (comment) {
-                result.comments.push(comment);
-            }
         }
+        // Комментарии теперь обрабатываются как таблица в _processTable
     }
 
     public static serialize(testCase: MarkdownTestCase): string {
@@ -326,10 +344,17 @@ export class MarkdownTestCaseParser {
 
         // Комментарии
         lines.push('## Комментарии');
+        lines.push('');
         if (testCase.comments && testCase.comments.length > 0) {
+            lines.push('| № |  Комментарий  |  Статус  |');
+            lines.push('|---|------------|------------|');
             testCase.comments.forEach(comment => {
-                lines.push(` - ${comment}`);
+                const commentText = this._serializeStepCell(comment.comment);
+                lines.push(`|${comment.number} |${commentText} |${comment.status || 'OPEN'} |`);
             });
+        } else {
+            lines.push('| № |  Комментарий  |  Статус  |');
+            lines.push('|---|------------|------------|');
         }
 
         return lines.join('\n');

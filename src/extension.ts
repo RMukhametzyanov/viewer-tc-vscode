@@ -70,6 +70,9 @@ async function createNewTestCase(context: vscode.ExtensionContext) {
 
 ## Комментарии
 
+| № |  Комментарий  |  Статус  |
+|---|------------|------------|
+
 `;
 
     // Determine file path

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { MarkdownTestCaseParser, MarkdownTestCase } from './markdownTestCaseParser';
+import { MarkdownTestCaseParser, MarkdownTestCase, MarkdownComment } from './markdownTestCaseParser';
 import { MarkdownTestCaseRenderer } from './markdownTestCaseRenderer';
 import { SettingsProvider } from './settingsProvider';
 
@@ -51,6 +51,12 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                     return;
                 case 'deleteStep':
                     await this._deleteStepInFile(message.stepIndex);
+                    return;
+                case 'updateComment':
+                    await this._updateCommentInFile(message.commentIndex, message.field, message.value);
+                    return;
+                case 'addComment':
+                    await this._addCommentInFile(message.comment);
                     return;
                 case 'addTag':
                     await SettingsProvider.addTag(message.tag);
@@ -155,15 +161,6 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                         testCase.links.pop();
                     }
                 }
-            } else if (field.startsWith('comment-')) {
-                const index = parseInt(field.split('-')[1]);
-                if (!testCase.comments) {
-                    testCase.comments = [];
-                }
-                while (testCase.comments.length <= index) {
-                    testCase.comments.push('');
-                }
-                testCase.comments[index] = value;
             } else if (field === 'epic') {
                 testCase.epicFeatureStory.epic = value;
             } else if (field === 'feature') {
@@ -380,6 +377,123 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
         } catch (error) {
             this._isUpdatingFromFile = false;
             vscode.window.showErrorMessage(`Ошибка при переупорядочивании шагов: ${error}`);
+        }
+    }
+
+    private async _updateCommentInFile(commentIndex: number, field: string, value: string) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return;
+        }
+        
+        const isMarkdown = activeEditor.document.languageId === 'markdown' || 
+                          activeEditor.document.fileName.endsWith('.md') ||
+                          activeEditor.document.fileName.endsWith('.markdown');
+        
+        if (!isMarkdown) {
+            return;
+        }
+
+        try {
+            const document = activeEditor.document;
+            const content = document.getText();
+            const testCase = MarkdownTestCaseParser.parse(content);
+            
+            // Update comment field
+            if (testCase.comments && testCase.comments[commentIndex]) {
+                const comment = testCase.comments[commentIndex];
+                if (field === 'comment') {
+                    comment.comment = value;
+                } else if (field === 'status') {
+                    comment.status = value;
+                }
+            }
+
+            // Serialize back to markdown
+            const newContent = MarkdownTestCaseParser.serialize(testCase);
+            
+            // Update file
+            this._isUpdatingFromFile = true;
+            this._lastUpdateTime = Date.now();
+            
+            const edit = new vscode.WorkspaceEdit();
+            const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length)
+            );
+            edit.replace(document.uri, fullRange, newContent);
+            
+            await vscode.workspace.applyEdit(edit);
+            await document.save();
+            
+            // Small delay to let file update, then refresh webview
+            setTimeout(() => {
+                this._isUpdatingFromFile = false;
+                this.updateContent();
+            }, 200);
+        } catch (error) {
+            this._isUpdatingFromFile = false;
+            vscode.window.showErrorMessage(`Ошибка при обновлении комментария: ${error}`);
+        }
+    }
+
+    private async _addCommentInFile(commentText: string) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return;
+        }
+        
+        const isMarkdown = activeEditor.document.languageId === 'markdown' || 
+                          activeEditor.document.fileName.endsWith('.md') ||
+                          activeEditor.document.fileName.endsWith('.markdown');
+        
+        if (!isMarkdown) {
+            return;
+        }
+
+        try {
+            const document = activeEditor.document;
+            const content = document.getText();
+            const testCase = MarkdownTestCaseParser.parse(content);
+            
+            // Create new comment
+            if (!testCase.comments) {
+                testCase.comments = [];
+            }
+            
+            const newComment: MarkdownComment = {
+                number: testCase.comments.length + 1,
+                comment: commentText,
+                status: 'OPEN'
+            };
+            
+            testCase.comments.push(newComment);
+
+            // Serialize back to markdown
+            const newContent = MarkdownTestCaseParser.serialize(testCase);
+            
+            // Update file
+            this._isUpdatingFromFile = true;
+            this._lastUpdateTime = Date.now();
+            
+            const edit = new vscode.WorkspaceEdit();
+            const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length)
+            );
+            edit.replace(document.uri, fullRange, newContent);
+            
+            await vscode.workspace.applyEdit(edit);
+            await document.save();
+            
+            // Small delay to let file update, then refresh webview
+            setTimeout(() => {
+                this._isUpdatingFromFile = false;
+                this.updateContent();
+            }, 200);
+        } catch (error) {
+            this._isUpdatingFromFile = false;
+            vscode.window.showErrorMessage(`Ошибка при добавлении комментария: ${error}`);
         }
     }
 

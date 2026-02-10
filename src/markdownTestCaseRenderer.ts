@@ -1,4 +1,4 @@
-import { MarkdownTestCase, MarkdownTestStep } from './markdownTestCaseParser';
+import { MarkdownTestCase, MarkdownTestStep, MarkdownComment } from './markdownTestCaseParser';
 
 export class MarkdownTestCaseRenderer {
     public static escapeHtml(text: string): string {
@@ -684,19 +684,127 @@ export class MarkdownTestCaseRenderer {
             text-decoration: underline;
         }
 
-        .comments-list {
-            list-style: none;
-            padding: 0;
+        .comments-table {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 4px;
+            overflow: hidden;
+            font-size: 14px;
         }
 
-        .comments-list li {
-            margin-bottom: 8px;
-            padding: 8px;
+        .comments-table-header {
+            display: grid;
+            grid-template-columns: 50px 1fr 120px;
+            background-color: var(--vscode-editor-inactiveSelectionBackground);
+            border-bottom: 2px solid var(--vscode-panel-border);
+        }
+
+        .comments-table-header-cell {
+            padding: 12px;
+            font-weight: 600;
+            color: var(--vscode-foreground);
+            text-align: left;
+            border-right: 1px solid var(--vscode-panel-border);
+        }
+
+        .comments-table-header-cell:last-child {
+            border-right: none;
+        }
+
+        .comments-table-header-cell.number-cell {
+            text-align: center;
+        }
+
+        .comments-table-body {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .comments-table-row {
+            display: grid;
+            grid-template-columns: 50px 1fr 120px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            background-color: var(--vscode-editor-background);
+        }
+
+        .comments-table-row:last-child {
+            border-bottom: none;
+        }
+
+        .comments-table-cell {
+            padding: 12px;
+            border-right: 1px solid var(--vscode-panel-border);
+            vertical-align: top;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .comments-table-cell:last-child {
+            border-right: none;
+        }
+
+        .comments-table-cell.number-cell {
+            text-align: center;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .comment-cell-editable {
+            width: 100%;
+            border: none;
+            background: transparent;
+            color: var(--vscode-foreground);
+            font-family: var(--vscode-font-family);
+            font-size: 14px;
+            padding: 4px;
+            resize: none;
+            overflow: hidden;
+            min-height: 20px;
+            box-sizing: border-box;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.4;
+        }
+
+        .comment-cell-editable:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+
+        .comment-status-select {
+            width: 100%;
+            border: 1px solid var(--vscode-input-border);
+            background: var(--vscode-input-background);
+            color: var(--vscode-foreground);
+            font-family: var(--vscode-font-family);
+            font-size: 14px;
+            padding: 4px 8px;
+            border-radius: 2px;
+            cursor: pointer;
+        }
+
+        .comment-status-select:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+
+        .comments-add-form {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px;
             background-color: var(--vscode-editor-inactiveSelectionBackground);
             border-radius: 4px;
+            margin-bottom: 12px;
         }
 
-        .comments-list input {
+        .comments-add-form.visible {
+            display: flex;
+        }
+
+        .comments-add-form textarea {
             width: 100%;
             font-size: 14px;
             color: var(--vscode-foreground);
@@ -705,11 +813,29 @@ export class MarkdownTestCaseRenderer {
             padding: 6px 8px;
             border-radius: 2px;
             font-family: var(--vscode-font-family);
+            box-sizing: border-box;
+            resize: vertical;
         }
 
-        .comments-list input:focus {
+        .comments-add-form textarea:focus {
             outline: 1px solid var(--vscode-focusBorder);
             outline-offset: -1px;
+        }
+
+        .comments-add-form button {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            align-self: flex-start;
+        }
+
+        .comments-add-form button:hover {
+            background-color: var(--vscode-button-hoverBackground);
         }
     </style>
 </head>
@@ -759,6 +885,8 @@ export class MarkdownTestCaseRenderer {
 
             // Auto-resize textareas in table cells and update row height
             function autoResizeTextarea(textarea) {
+                // Reset height to get accurate scrollHeight
+                const currentHeight = textarea.style.height;
                 textarea.style.height = 'auto';
                 const scrollHeight = textarea.scrollHeight;
                 textarea.style.height = Math.max(20, scrollHeight) + 'px';
@@ -766,6 +894,9 @@ export class MarkdownTestCaseRenderer {
                 // Update row height based on the tallest cell
                 const row = textarea.closest('.steps-table-row');
                 if (row) {
+                    // Force reflow to get accurate cell heights
+                    void row.offsetHeight;
+                    
                     const cells = row.querySelectorAll('.steps-table-cell');
                     let maxHeight = 0;
                     cells.forEach(cell => {
@@ -775,11 +906,15 @@ export class MarkdownTestCaseRenderer {
                         }
                     });
                     // Ensure row height matches the tallest cell
-                    row.style.minHeight = maxHeight + 'px';
+                    if (maxHeight > 0) {
+                        row.style.minHeight = maxHeight + 'px';
+                    }
                 }
             }
 
             document.querySelectorAll('.step-cell-editable').forEach(textarea => {
+                // Set initial height to auto before calculating
+                textarea.style.height = 'auto';
                 autoResizeTextarea(textarea);
                 textarea.addEventListener('input', function() {
                     autoResizeTextarea(this);
@@ -791,14 +926,66 @@ export class MarkdownTestCaseRenderer {
             });
             
             // Initial resize for all rows after content is loaded
-            setTimeout(() => {
-                document.querySelectorAll('.steps-table-row').forEach(row => {
-                    const textareas = row.querySelectorAll('.step-cell-editable');
-                    textareas.forEach(textarea => {
-                        autoResizeTextarea(textarea);
+            // Use requestAnimationFrame to ensure DOM is fully rendered
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    document.querySelectorAll('.steps-table-row').forEach(row => {
+                        const textareas = row.querySelectorAll('.step-cell-editable');
+                        textareas.forEach(textarea => {
+                            // Reset height first to get accurate scrollHeight
+                            textarea.style.height = 'auto';
+                            autoResizeTextarea(textarea);
+                        });
                     });
+                }, 50);
+            });
+
+            // Handle comments (Комментарии)
+            const commentsAddToggle = document.getElementById('comments-add-toggle');
+            const commentsAddForm = document.getElementById('comments-add-form');
+            const newCommentTextInput = document.getElementById('new-comment-text');
+            const addCommentButton = document.getElementById('add-comment-button');
+
+            // Toggle add form visibility
+            if (commentsAddToggle && commentsAddForm) {
+                commentsAddToggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    commentsAddForm.classList.toggle('visible');
+                    if (commentsAddForm.classList.contains('visible')) {
+                        newCommentTextInput?.focus();
+                    }
                 });
-            }, 100);
+            }
+
+            // Handle adding new comment
+            if (addCommentButton && newCommentTextInput) {
+                addCommentButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const commentText = newCommentTextInput.value.trim();
+                    
+                    if (!commentText) {
+                        return;
+                    }
+
+                    vscode.postMessage({
+                        command: 'addComment',
+                        comment: commentText
+                    });
+
+                    // Clear form and hide it
+                    newCommentTextInput.value = '';
+                    commentsAddForm?.classList.remove('visible');
+                });
+
+                // Also handle Enter key in textarea
+                newCommentTextInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        addCommentButton.click();
+                    }
+                });
+            }
 
             // Handle field updates
             document.querySelectorAll('[data-field]').forEach(element => {
@@ -839,6 +1026,89 @@ export class MarkdownTestCaseRenderer {
                         value: value
                     });
                 });
+            });
+
+            // Handle comment updates
+            document.querySelectorAll('[data-comment-field]').forEach(element => {
+                if (element.tagName === 'SELECT') {
+                    element.addEventListener('change', function() {
+                        const commentIndex = parseInt(this.getAttribute('data-comment-index') || '0');
+                        const field = this.getAttribute('data-comment-field');
+                        const value = this.value || '';
+                        vscode.postMessage({
+                            command: 'updateComment',
+                            commentIndex: commentIndex,
+                            field: field,
+                            value: value
+                        });
+                    });
+                } else {
+                    element.addEventListener('blur', function() {
+                        const commentIndex = parseInt(this.getAttribute('data-comment-index') || '0');
+                        const field = this.getAttribute('data-comment-field');
+                        const value = this.value || '';
+                        vscode.postMessage({
+                            command: 'updateComment',
+                            commentIndex: commentIndex,
+                            field: field,
+                            value: value
+                        });
+                    });
+                }
+            });
+
+            // Auto-resize textareas in comment cells
+            function autoResizeCommentTextarea(textarea) {
+                // Reset height to get accurate scrollHeight
+                textarea.style.height = 'auto';
+                const scrollHeight = textarea.scrollHeight;
+                textarea.style.height = Math.max(20, scrollHeight) + 'px';
+                
+                // Update row height based on the tallest cell
+                const row = textarea.closest('.comments-table-row');
+                if (row) {
+                    // Force reflow to get accurate cell heights
+                    void row.offsetHeight;
+                    
+                    const cells = row.querySelectorAll('.comments-table-cell');
+                    let maxHeight = 0;
+                    cells.forEach(cell => {
+                        const cellHeight = cell.offsetHeight;
+                        if (cellHeight > maxHeight) {
+                            maxHeight = cellHeight;
+                        }
+                    });
+                    // Ensure row height matches the tallest cell
+                    if (maxHeight > 0) {
+                        row.style.minHeight = maxHeight + 'px';
+                    }
+                }
+            }
+
+            document.querySelectorAll('.comment-cell-editable').forEach(textarea => {
+                // Set initial height to auto before calculating
+                textarea.style.height = 'auto';
+                autoResizeCommentTextarea(textarea);
+                textarea.addEventListener('input', function() {
+                    autoResizeCommentTextarea(this);
+                });
+                textarea.addEventListener('focus', function() {
+                    autoResizeCommentTextarea(this);
+                });
+            });
+
+            // Initial resize for all comment rows after content is loaded
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    document.querySelectorAll('.comments-table-row').forEach(row => {
+                        const textareas = row.querySelectorAll('.comment-cell-editable');
+                        textareas.forEach(textarea => {
+                            // Reset height first to get accurate scrollHeight
+                            textarea.style.height = 'auto';
+                            autoResizeCommentTextarea(textarea);
+                        });
+                    });
+                }, 50);
             });
 
             // Handle drag and drop for steps
@@ -1387,7 +1657,7 @@ export class MarkdownTestCaseRenderer {
             ${this._renderSection('description', 'Описание (description)', this._renderDescription(testCase.description || ''), true, true)}
             ${this._renderSection('preconditions', 'Предусловия (preconditions)', this._renderPreconditions(testCase.preconditions || ''), true, true)}
             ${this._renderSection('steps', 'Шаги тестирования', this._renderSteps(testCase.steps || [], showStatusColumn))}
-            ${this._renderSection('comments', 'Комментарии', this._renderComments(testCase.comments || []))}
+            ${this._renderSection('comments', 'Комментарии', this._renderComments(testCase.comments || []), false, false, '<button class="section-add-btn" id="comments-add-toggle" title="Добавить комментарий">+</button>')}
         `;
     }
 
@@ -1601,16 +1871,56 @@ export class MarkdownTestCaseRenderer {
         `;
     }
 
-    private static _renderComments(comments: string[]): string {
-        if (comments.length === 0) {
-            return '<div class="empty">Нет комментариев</div>';
-        }
+    private static _renderComments(comments: MarkdownComment[]): string {
+        const rows = comments && comments.length > 0 ? comments.map((comment, index) => {
+            const statusOptions = ['OPEN', 'FIXED', 'CLOSED'];
+            const options = statusOptions.map(status => 
+                `<option value="${status}" ${comment.status === status ? 'selected' : ''}>${this.escapeHtml(status)}</option>`
+            ).join('');
+
+            return `
+                <div class="comments-table-row" data-comment-index="${index}">
+                    <div class="comments-table-cell number-cell">${comment.number}</div>
+                    <div class="comments-table-cell comment-cell">
+                        <textarea 
+                            class="comment-cell-editable" 
+                            data-comment-index="${index}"
+                            data-comment-field="comment"
+                            rows="1"
+                        >${this.escapeHtml(comment.comment || '')}</textarea>
+                    </div>
+                    <div class="comments-table-cell status-cell">
+                        <select 
+                            class="comment-status-select" 
+                            data-comment-index="${index}"
+                            data-comment-field="status"
+                        >
+                            ${options}
+                        </select>
+                    </div>
+                </div>
+            `;
+        }).join('') : '';
+
         return `
-            <ul class="comments-list">
-                ${comments.map((comment, index) => 
-                    `<li><input type="text" data-field="comment-${index}" value="${this.escapeHtml(comment)}" /></li>`
-                ).join('')}
-            </ul>
+            <div class="comments-add-form" id="comments-add-form">
+                <textarea 
+                    id="new-comment-text" 
+                    placeholder="Введите комментарий"
+                    rows="3"
+                ></textarea>
+                <button id="add-comment-button">Добавить</button>
+            </div>
+            <div class="comments-table">
+                <div class="comments-table-header">
+                    <div class="comments-table-header-cell number-cell">№</div>
+                    <div class="comments-table-header-cell comment-cell">Комментарий</div>
+                    <div class="comments-table-header-cell status-cell">Статус</div>
+                </div>
+                <div class="comments-table-body" id="comments-table-body">
+                    ${rows}
+                </div>
+            </div>
         `;
     }
 }
