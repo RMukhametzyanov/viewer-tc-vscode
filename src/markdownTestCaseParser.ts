@@ -184,10 +184,10 @@ export class MarkdownTestCaseParser {
             for (const row of rows) {
                 const step: MarkdownTestStep = {
                     stepNumber: stepIndex >= 0 && row[stepIndex] ? parseInt(row[stepIndex]) || 0 : 0,
-                    action: actionIndex >= 0 && row[actionIndex] ? row[actionIndex] : '',
-                    expectedResult: expectedIndex >= 0 && row[expectedIndex] ? row[expectedIndex] : '',
-                    attachments: attachmentsIndex >= 0 && row[attachmentsIndex] ? row[attachmentsIndex] : '',
-                    status: statusIndex >= 0 && row[statusIndex] ? row[statusIndex] : ''
+                    action: actionIndex >= 0 && row[actionIndex] ? this._normalizeStepCell(row[actionIndex]) : '',
+                    expectedResult: expectedIndex >= 0 && row[expectedIndex] ? this._normalizeStepCell(row[expectedIndex]) : '',
+                    attachments: attachmentsIndex >= 0 && row[attachmentsIndex] ? this._normalizeStepCell(row[attachmentsIndex]) : '',
+                    status: statusIndex >= 0 && row[statusIndex] ? this._normalizeStepCell(row[statusIndex]) : ''
                 };
                 
                 if (step.stepNumber > 0 || step.action || step.expectedResult) {
@@ -195,6 +195,17 @@ export class MarkdownTestCaseParser {
                 }
             }
         }
+    }
+
+    /**
+     * Преобразует содержимое ячейки шага из markdown в текст для редактирования.
+     * Заменяем <br> на переводы строк, чтобы в textarea отображалось многострочно.
+     */
+    private static _normalizeStepCell(value: string): string {
+        if (!value) return '';
+        return value
+            .replace(/<br\s*\/?>/gi, '\n')
+            .trim();
     }
 
     private static _processLine(section: string, line: string, result: MarkdownTestCase) {
@@ -303,7 +314,11 @@ export class MarkdownTestCaseParser {
         lines.push('|-----|------------|-----------------------|----------|-------|');
         if (testCase.steps && testCase.steps.length > 0) {
             testCase.steps.forEach(step => {
-                lines.push(`| ${step.stepNumber} | ${step.action || ''} | ${step.expectedResult || ''} | ${step.attachments || ''} |${step.status || ''} |`);
+                const action = this._serializeStepCell(step.action);
+                const expected = this._serializeStepCell(step.expectedResult);
+                const attachments = this._serializeStepCell(step.attachments);
+                const status = this._serializeStepCell(step.status);
+                lines.push(`| ${step.stepNumber} | ${action} | ${expected} | ${attachments} |${status} |`);
             });
         }
         lines.push('');
@@ -318,6 +333,15 @@ export class MarkdownTestCaseParser {
         }
 
         return lines.join('\n');
+    }
+
+    /**
+     * Преобразует многострочный текст шага в формат для markdown-таблицы.
+     * Переводы строк заменяем на <br>, чтобы строка шага оставалась одной строкой в таблице.
+     */
+    private static _serializeStepCell(value?: string): string {
+        if (!value) return '';
+        return value.replace(/\r?\n/g, '<br>');
     }
 }
 

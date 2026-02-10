@@ -24,7 +24,7 @@ async function createNewTestCase(context: vscode.ExtensionContext) {
 
     // Ask for file name
     const fileName = await vscode.window.showInputBox({
-        prompt: 'Введите имя файла (без расширения .json)',
+        prompt: 'Введите имя файла (без расширения .md)',
         placeHolder: 'Новый тест-кейс',
         value: 'Новый тест-кейс'
     });
@@ -33,52 +33,44 @@ async function createNewTestCase(context: vscode.ExtensionContext) {
         return;
     }
 
-    // Generate IDs and timestamps
+    // Generate ID
     const testCaseId = generateUUID();
-    const stepId = generateUUID();
-    const now = Date.now();
 
-    // Create test case structure
-    const testCase = {
-        "id": testCaseId,
-        "name": fileName,
-        "description": "",
-        "preconditions": "",
-        "expectedResult": "",
-        "epic": "",
-        "feature": "",
-        "story": "",
-        "component": "",
-        "testLayer": "E2E",
-        "severity": "NORMAL",
-        "priority": "MEDIUM",
-        "environment": "",
-        "browser": "",
-        "owner": "",
-        "author": "",
-        "reviewer": "",
-        "testCaseId": "",
-        "issueLinks": "",
-        "testCaseLinks": "",
-        "tags": "",
-        "status": "Draft",
-        "testType": "Manual",
-        "steps": [
-            {
-                "id": stepId,
-                "name": "Шаг 1",
-                "description": "",
-                "expectedResult": "",
-                "status": "pending",
-                "bugLink": "",
-                "skipReason": "",
-                "attachments": ""
-            }
-        ],
-        "createdAt": now,
-        "updatedAt": now,
-        "notes": {}
-    };
+    // Create markdown test case structure
+    const markdownContent = `# ${fileName}
+
+## Метаданные
+| Поле | Значение |
+|------|----------|
+| **ID** | ${testCaseId} |
+| **Автор** | |
+| **Владелец** | |
+| **Статус** | Готов|
+| **Тип теста** | Ручной|
+
+## Связи
+
+## Epic/Feature/Story
+| Поле | Значение |
+|------|----------|
+| **Epic** | |
+| **Feature** | |
+| **Story** | |
+
+## Теги (tags)
+
+## Описание (description)
+
+## Предусловия (preconditions)
+
+## Шаги тестирования
+| Шаг |  Действие  |           ОР          | Вложения |Статус |
+|-----|------------|-----------------------|----------|-------|
+| 1   |            |                       |          |       |
+
+## Комментарии
+
+`;
 
     // Determine file path
     let filePath: string;
@@ -88,16 +80,16 @@ async function createNewTestCase(context: vscode.ExtensionContext) {
         // If there's an active file, create in the same directory
         const activeFilePath = activeEditor.document.uri.fsPath;
         const activeDir = path.dirname(activeFilePath);
-        filePath = path.join(activeDir, `${fileName}.json`);
+        filePath = path.join(activeDir, `${fileName}.md`);
     } else {
         // Otherwise, create in the workspace root
-        filePath = path.join(workspaceFolders[0].uri.fsPath, `${fileName}.json`);
+        filePath = path.join(workspaceFolders[0].uri.fsPath, `${fileName}.md`);
     }
 
     // Check if file already exists
     if (fs.existsSync(filePath)) {
         const overwrite = await vscode.window.showWarningMessage(
-            `Файл ${fileName}.json уже существует. Перезаписать?`,
+            `Файл ${fileName}.md уже существует. Перезаписать?`,
             'Да',
             'Нет'
         );
@@ -108,14 +100,13 @@ async function createNewTestCase(context: vscode.ExtensionContext) {
 
     // Write file
     try {
-        const content = JSON.stringify(testCase, null, 4);
-        fs.writeFileSync(filePath, content, 'utf8');
+        fs.writeFileSync(filePath, markdownContent, 'utf8');
         
         // Open the new file
         const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
         await vscode.window.showTextDocument(document);
         
-        vscode.window.showInformationMessage(`Тест-кейс "${fileName}.json" успешно создан`);
+        vscode.window.showInformationMessage(`Тест-кейс "${fileName}.md" успешно создан`);
     } catch (error) {
         vscode.window.showErrorMessage(`Ошибка при создании файла: ${error}`);
     }

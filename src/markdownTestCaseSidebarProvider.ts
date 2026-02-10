@@ -43,6 +43,18 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                 case 'updateStep':
                     await this._updateStepInFile(message.stepIndex, message.field, message.value);
                     return;
+                case 'reorderSteps':
+                    await this._reorderStepsInFile(message.fromIndex, message.toIndex);
+                    return;
+                case 'addStep':
+                    await this._addStepInFile(message.afterIndex);
+                    return;
+                case 'deleteStep':
+                    await this._deleteStepInFile(message.stepIndex);
+                    return;
+                case 'addTag':
+                    await SettingsProvider.addTag(message.tag);
+                    return;
             }
         });
 
@@ -128,10 +140,21 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                 if (!testCase.links) {
                     testCase.links = [];
                 }
-                while (testCase.links.length <= index) {
-                    testCase.links.push('');
+                // Remove leading " - " if present (from new link format)
+                const cleanValue = value.replace(/^\s*-\s*/, '').trim();
+                
+                // Only add if value is not empty
+                if (cleanValue) {
+                    while (testCase.links.length <= index) {
+                        testCase.links.push('');
+                    }
+                    testCase.links[index] = cleanValue;
+                } else {
+                    // Remove empty links at the end
+                    while (testCase.links.length > 0 && testCase.links[testCase.links.length - 1] === '') {
+                        testCase.links.pop();
+                    }
                 }
-                testCase.links[index] = value;
             } else if (field.startsWith('comment-')) {
                 const index = parseInt(field.split('-')[1]);
                 if (!testCase.comments) {
@@ -296,6 +319,196 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
         }
     }
 
+    private async _reorderStepsInFile(fromIndex: number, toIndex: number) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return;
+        }
+        
+        const isMarkdown = activeEditor.document.languageId === 'markdown' || 
+                          activeEditor.document.fileName.endsWith('.md') ||
+                          activeEditor.document.fileName.endsWith('.markdown');
+        
+        if (!isMarkdown) {
+            return;
+        }
+
+        try {
+            const document = activeEditor.document;
+            const content = document.getText();
+            const testCase = MarkdownTestCaseParser.parse(content);
+            
+            // Reorder steps
+            if (testCase.steps && testCase.steps.length > 0) {
+                if (fromIndex >= 0 && fromIndex < testCase.steps.length &&
+                    toIndex >= 0 && toIndex < testCase.steps.length) {
+                    const steps = [...testCase.steps];
+                    const [movedStep] = steps.splice(fromIndex, 1);
+                    steps.splice(toIndex, 0, movedStep);
+                    
+                    // Update step numbers
+                    steps.forEach((step, index) => {
+                        step.stepNumber = index + 1;
+                    });
+                    
+                    testCase.steps = steps;
+                }
+            }
+
+            // Serialize back to markdown
+            const newContent = MarkdownTestCaseParser.serialize(testCase);
+            
+            // Update file
+            this._isUpdatingFromFile = true;
+            this._lastUpdateTime = Date.now();
+            
+            const edit = new vscode.WorkspaceEdit();
+            const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length)
+            );
+            edit.replace(document.uri, fullRange, newContent);
+            
+            await vscode.workspace.applyEdit(edit);
+            await document.save();
+            
+            // Small delay to let file update, then refresh webview
+            setTimeout(() => {
+                this._isUpdatingFromFile = false;
+                this.updateContent();
+            }, 200);
+        } catch (error) {
+            this._isUpdatingFromFile = false;
+            vscode.window.showErrorMessage(`Ошибка при переупорядочивании шагов: ${error}`);
+        }
+    }
+
+    private async _addStepInFile(afterIndex: number) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return;
+        }
+        
+        const isMarkdown = activeEditor.document.languageId === 'markdown' || 
+                          activeEditor.document.fileName.endsWith('.md') ||
+                          activeEditor.document.fileName.endsWith('.markdown');
+        
+        if (!isMarkdown) {
+            return;
+        }
+
+        try {
+            const document = activeEditor.document;
+            const content = document.getText();
+            const testCase = MarkdownTestCaseParser.parse(content);
+            
+            // Create new empty step
+            const newStep = {
+                stepNumber: 0, // Will be recalculated
+                action: '',
+                expectedResult: '',
+                attachments: '',
+                status: ''
+            };
+            
+            // Add step after the specified index
+            if (!testCase.steps) {
+                testCase.steps = [];
+            }
+            
+            const insertIndex = afterIndex + 1;
+            testCase.steps.splice(insertIndex, 0, newStep);
+            
+            // Update step numbers
+            testCase.steps.forEach((step, index) => {
+                step.stepNumber = index + 1;
+            });
+
+            // Serialize back to markdown
+            const newContent = MarkdownTestCaseParser.serialize(testCase);
+            
+            // Update file
+            this._isUpdatingFromFile = true;
+            this._lastUpdateTime = Date.now();
+            
+            const edit = new vscode.WorkspaceEdit();
+            const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length)
+            );
+            edit.replace(document.uri, fullRange, newContent);
+            
+            await vscode.workspace.applyEdit(edit);
+            await document.save();
+            
+            // Small delay to let file update, then refresh webview
+            setTimeout(() => {
+                this._isUpdatingFromFile = false;
+                this.updateContent();
+            }, 200);
+        } catch (error) {
+            this._isUpdatingFromFile = false;
+            vscode.window.showErrorMessage(`Ошибка при добавлении шага: ${error}`);
+        }
+    }
+
+    private async _deleteStepInFile(stepIndex: number) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return;
+        }
+        
+        const isMarkdown = activeEditor.document.languageId === 'markdown' || 
+                          activeEditor.document.fileName.endsWith('.md') ||
+                          activeEditor.document.fileName.endsWith('.markdown');
+        
+        if (!isMarkdown) {
+            return;
+        }
+
+        try {
+            const document = activeEditor.document;
+            const content = document.getText();
+            const testCase = MarkdownTestCaseParser.parse(content);
+            
+            // Delete step
+            if (testCase.steps && testCase.steps.length > stepIndex) {
+                testCase.steps.splice(stepIndex, 1);
+                
+                // Update step numbers
+                testCase.steps.forEach((step, index) => {
+                    step.stepNumber = index + 1;
+                });
+            }
+
+            // Serialize back to markdown
+            const newContent = MarkdownTestCaseParser.serialize(testCase);
+            
+            // Update file
+            this._isUpdatingFromFile = true;
+            this._lastUpdateTime = Date.now();
+            
+            const edit = new vscode.WorkspaceEdit();
+            const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length)
+            );
+            edit.replace(document.uri, fullRange, newContent);
+            
+            await vscode.workspace.applyEdit(edit);
+            await document.save();
+            
+            // Small delay to let file update, then refresh webview
+            setTimeout(() => {
+                this._isUpdatingFromFile = false;
+                this.updateContent();
+            }, 200);
+        } catch (error) {
+            this._isUpdatingFromFile = false;
+            vscode.window.showErrorMessage(`Ошибка при удалении шага: ${error}`);
+        }
+    }
+
     public updateContent() {
         if (!this._view) {
             return;
@@ -337,7 +550,9 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
             
             if (hasContent || content.includes('## Метаданные') || content.includes('## Шаги тестирования')) {
                 const testers = SettingsProvider.getTesters();
-                this._view.webview.html = MarkdownTestCaseRenderer.render(testCase, documentUri, testers);
+                const tags = SettingsProvider.getTags();
+                const showStatusColumn = vscode.workspace.getConfiguration('testCaseViewer').get<boolean>('showStatusColumn', true);
+                this._view.webview.html = MarkdownTestCaseRenderer.render(testCase, documentUri, testers, tags, showStatusColumn);
             } else {
                 this._view.webview.html = this._getEmptyHtml('Этот файл не является тест-кейсом в формате markdown');
             }
