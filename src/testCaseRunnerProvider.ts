@@ -1453,7 +1453,6 @@ export class TestCaseRunnerProvider {
         
         .step-header-runner {
             display: flex;
-            justify-content: space-between;
             align-items: center;
             margin-bottom: 8px;
         }
@@ -1677,14 +1676,8 @@ export class TestCaseRunnerProvider {
             </select>
         </div>
         <div class="filter-group">
-            <span class="filter-label">Владелец:</span>
+            <span class="filter-label">Исполнитель:</span>
             <select class="filter-select" id="filter-owner">
-                <option value="">Все</option>
-            </select>
-        </div>
-        <div class="filter-group">
-            <span class="filter-label">Ревьювер:</span>
-            <select class="filter-select" id="filter-reviewer">
                 <option value="">Все</option>
             </select>
         </div>
@@ -1880,7 +1873,6 @@ export class TestCaseRunnerProvider {
             // Инициализация фильтров
             const authors = new Set();
             const owners = new Set();
-            const reviewers = new Set();
             const testTypes = new Set();
             const statuses = new Set();
             const epics = new Set();
@@ -1891,7 +1883,6 @@ export class TestCaseRunnerProvider {
             Object.values(testCasesData).forEach(tc => {
                 if (tc.author) authors.add(tc.author);
                 if (tc.owner) owners.add(tc.owner);
-                if (tc.reviewer) reviewers.add(tc.reviewer);
                 if (tc.testType) testTypes.add(tc.testType);
                 if (tc.status) statuses.add(tc.status);
                 if (tc.epic) epics.add(tc.epic);
@@ -1921,7 +1912,6 @@ export class TestCaseRunnerProvider {
             
             const authorSelect = document.getElementById('filter-author');
             const ownerSelect = document.getElementById('filter-owner');
-            const reviewerSelect = document.getElementById('filter-reviewer');
             const testTypeSelect = document.getElementById('filter-test-type');
             const statusSelect = document.getElementById('filter-status');
             const epicSelect = document.getElementById('filter-epic');
@@ -1942,13 +1932,6 @@ export class TestCaseRunnerProvider {
                 option.value = owner;
                 option.textContent = owner;
                 ownerSelect.appendChild(option);
-            });
-            
-            Array.from(reviewers).sort().forEach(reviewer => {
-                const option = document.createElement('option');
-                option.value = reviewer;
-                option.textContent = reviewer;
-                reviewerSelect.appendChild(option);
             });
             
             Array.from(testTypes).sort().forEach(testType => {
@@ -2274,7 +2257,6 @@ export class TestCaseRunnerProvider {
             function filterTree() {
                 const selectedAuthor = authorSelect.value;
                 const selectedOwner = ownerSelect.value;
-                const selectedReviewer = reviewerSelect.value;
                 const selectedTestType = testTypeSelect.value;
                 const selectedStatus = statusSelect.value;
                 const selectedEpic = epicSelect.value;
@@ -2283,7 +2265,7 @@ export class TestCaseRunnerProvider {
                 const selectedTag = tagsSelect.value;
                 
                 // Проверяем, есть ли активные фильтры
-                const hasActiveFilters = selectedAuthor || selectedOwner || selectedReviewer || 
+                const hasActiveFilters = selectedAuthor || selectedOwner || 
                                        selectedTestType || selectedStatus || selectedEpic || 
                                        selectedFeature || selectedStory || selectedTag;
                 
@@ -2301,7 +2283,6 @@ export class TestCaseRunnerProvider {
                 document.querySelectorAll('.tree-testcase').forEach(testCaseEl => {
                     const author = testCaseEl.getAttribute('data-author') || '';
                     const owner = testCaseEl.getAttribute('data-owner') || '';
-                    const reviewer = testCaseEl.getAttribute('data-reviewer') || '';
                     const testType = testCaseEl.getAttribute('data-test-type') || '';
                     const status = testCaseEl.getAttribute('data-status') || '';
                     const epic = testCaseEl.getAttribute('data-epic') || '';
@@ -2311,7 +2292,6 @@ export class TestCaseRunnerProvider {
                     
                     const matchAuthor = !selectedAuthor || author === selectedAuthor;
                     const matchOwner = !selectedOwner || owner === selectedOwner;
-                    const matchReviewer = !selectedReviewer || reviewer === selectedReviewer;
                     const matchTestType = !selectedTestType || testType === selectedTestType;
                     const matchStatus = !selectedStatus || status === selectedStatus;
                     const matchEpic = !selectedEpic || epic === selectedEpic;
@@ -2320,7 +2300,7 @@ export class TestCaseRunnerProvider {
                     // Для тегов проверяем, содержит ли строка выбранный тег
                     const matchTags = !selectedTag || (tags && tags.split(',').some(t => t.trim() === selectedTag));
                     
-                    if (matchAuthor && matchOwner && matchReviewer && matchTestType && 
+                    if (matchAuthor && matchOwner && matchTestType && 
                         matchStatus && matchEpic && matchFeature && matchStory && matchTags) {
                         testCaseEl.classList.remove('hidden');
                     } else {
@@ -2376,7 +2356,6 @@ export class TestCaseRunnerProvider {
             // Добавляем обработчики для всех фильтров
             authorSelect.addEventListener('change', filterTree);
             ownerSelect.addEventListener('change', filterTree);
-            reviewerSelect.addEventListener('change', filterTree);
             testTypeSelect.addEventListener('change', filterTree);
             statusSelect.addEventListener('change', filterTree);
             epicSelect.addEventListener('change', filterTree);
@@ -2391,7 +2370,6 @@ export class TestCaseRunnerProvider {
                     // Сбрасываем все фильтры в значение "Все" (пустое значение)
                     authorSelect.value = '';
                     ownerSelect.value = '';
-                    reviewerSelect.value = '';
                     testTypeSelect.value = '';
                     statusSelect.value = '';
                     epicSelect.value = '';
@@ -3188,16 +3166,17 @@ export class TestCaseRunnerProvider {
                     
                     stepsDiv.innerHTML = testCase.steps.map((step, index) => {
                         const status = step.status || 'pending';
+                        const borderColor = status === 'failed' ? '#dc3545' : 'var(--accent-color)';
                         return \`
-                        <div style="margin-bottom: 10px; padding: 8px; background-color: var(--bg-secondary); border-radius: 3px; border-left: 2px solid var(--accent-color);">
+                        <div style="margin-bottom: 10px; padding: 8px; background-color: var(--bg-secondary); border-radius: 3px; border-left: 2px solid \${borderColor};">
                             <div class="step-header-runner">
-                                <div class="step-number-runner">
-                                    ШАГ \${index + 1}
-                                </div>
-                                <div class="status-buttons" style="display: flex; gap: 4px; align-items: center;">
-                                    <button class="status-btn-icon passed \${status === 'passed' ? 'active' : ''}" data-step-id="\${step.id}" data-status="passed" title="Passed">\${getStatusIcon('passed', status === 'passed')}</button>
-                                    <button class="status-btn-icon failed \${status === 'failed' ? 'active' : ''}" data-step-id="\${step.id}" data-status="failed" title="Failed">\${getStatusIcon('failed', status === 'failed')}</button>
-                                    <button class="status-btn-icon skipped \${status === 'skipped' ? 'active' : ''}" data-step-id="\${step.id}" data-status="skipped" title="Skipped">\${getStatusIcon('skipped', status === 'skipped')}</button>
+                                <div class="step-number-runner" style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                                    <span>ШАГ \${index + 1}</span>
+                                    <div class="status-buttons" style="display: flex; gap: 4px; align-items: center;">
+                                        <button class="status-btn-icon passed \${status === 'passed' ? 'active' : ''}" data-step-id="\${step.id}" data-status="passed" title="Passed">\${getStatusIcon('passed', status === 'passed')}</button>
+                                        <button class="status-btn-icon failed \${status === 'failed' ? 'active' : ''}" data-step-id="\${step.id}" data-status="failed" title="Failed">\${getStatusIcon('failed', status === 'failed')}</button>
+                                        <button class="status-btn-icon skipped \${status === 'skipped' ? 'active' : ''}" data-step-id="\${step.id}" data-status="skipped" title="Skipped">\${getStatusIcon('skipped', status === 'skipped')}</button>
+                                    </div>
                                 </div>
                             </div>
                             <textarea 
@@ -3308,6 +3287,9 @@ export class TestCaseRunnerProvider {
                                 // Находим карточку шага
                                 const stepCard = this.closest('div[style*="margin-bottom: 10px"]');
                                 if (stepCard) {
+                                    // Обновляем цвет левой полоски в зависимости от статуса
+                                    const borderColor = newStatus === 'failed' ? '#dc3545' : 'var(--accent-color)';
+                                    stepCard.style.borderLeft = \`2px solid \${borderColor}\`;
                                     // Находим оба контейнера (для failed и skipped)
                                     const allReasonContainers = stepCard.querySelectorAll('.step-reason-editable');
                                     let bugLinkContainer = null;

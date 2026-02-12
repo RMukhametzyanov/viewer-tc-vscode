@@ -73,6 +73,9 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                 case 'selectFileToAttach':
                     await this._selectFileToAttach();
                     return;
+                case 'executeCommand':
+                    await vscode.commands.executeCommand(message.commandId);
+                    return;
             }
         });
 

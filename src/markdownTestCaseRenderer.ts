@@ -1292,9 +1292,62 @@ export class MarkdownTestCaseRenderer {
         .comments-add-form button:hover {
             background-color: var(--vscode-button-hoverBackground);
         }
+
+        .viewer-top-header {
+            position: sticky;
+            top: 0;
+            background-color: var(--vscode-editor-background);
+            border-bottom: 1px solid var(--vscode-panel-border);
+            padding: 12px 24px;
+            margin: -24px -24px 24px -24px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            z-index: 100;
+        }
+
+        .viewer-header-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            font-size: 13px;
+            padding: 6px 12px;
+            border-radius: 3px;
+            transition: background-color 0.2s, border-color 0.2s;
+            gap: 6px;
+        }
+
+        .viewer-header-button:hover {
+            background-color: var(--vscode-list-hoverBackground);
+            border-color: var(--vscode-focusBorder);
+        }
+
+        .viewer-header-button:active {
+            background-color: var(--vscode-list-activeSelectionBackground);
+        }
+
+        .viewer-header-button-icon {
+            font-size: 16px;
+            line-height: 1;
+        }
     </style>
 </head>
 <body>
+    <div class="viewer-top-header">
+        <button class="viewer-header-button" id="run-tests-button" title="Запустить прогон тестов">
+            <span class="viewer-header-button-icon">▶</span>
+            <span>Запуск тест-кейсов</span>
+        </button>
+        <button class="viewer-header-button" id="settings-button" title="Открыть настройки">
+            <span class="viewer-header-button-icon">⚙️</span>
+            <span>Настройки</span>
+        </button>
+    </div>
     <div class="container">
         ${this._renderContent(testCase, testersList, showStatusColumn)}
     </div>
@@ -1302,6 +1355,28 @@ export class MarkdownTestCaseRenderer {
         (function() {
             const vscode = acquireVsCodeApi();
             let focusedElement = null;
+
+            // Header button handlers
+            const runTestsButton = document.getElementById('run-tests-button');
+            const settingsButton = document.getElementById('settings-button');
+
+            if (runTestsButton) {
+                runTestsButton.addEventListener('click', function() {
+                    vscode.postMessage({
+                        command: 'executeCommand',
+                        commandId: 'testCaseViewer.createStandaloneHtml'
+                    });
+                });
+            }
+
+            if (settingsButton) {
+                settingsButton.addEventListener('click', function() {
+                    vscode.postMessage({
+                        command: 'executeCommand',
+                        commandId: 'testCaseViewer.openSettings'
+                    });
+                });
+            }
 
             // Section collapse/expand
             document.querySelectorAll('.section-title').forEach(title => {
