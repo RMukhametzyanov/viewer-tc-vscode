@@ -288,6 +288,17 @@ export async function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.toggleTreeMode', async () => {
+            const currentMode = treeViewProvider.getTreeMode();
+            const newMode = currentMode === 'file' ? 'epic-feature-story' : 'file';
+            treeViewProvider.setTreeMode(newMode);
+            
+            const modeLabel = newMode === 'file' ? 'по файлам' : 'по Epic/Feature/Story';
+            vscode.window.showInformationMessage(`Режим отображения дерева: ${modeLabel}`);
+        })
+    );
+
+    context.subscriptions.push(
         vscode.commands.registerCommand('testCaseViewer.deleteTestCase', async (item?: TestCaseTreeItem) => {
             // Если команда вызвана через горячую клавишу, получаем выбранный элемент из tree view
             if (!item) {

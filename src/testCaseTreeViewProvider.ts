@@ -169,6 +169,7 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
     
     private _testCases: Map<string, TestCaseNode> = new Map();
     private _extensionUri: vscode.Uri;
+    private _treeMode: 'file' | 'epic-feature-story' = 'file';
     private _filters: {
         author?: string;
         owner?: string;
@@ -206,6 +207,19 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
         this._testCases.clear();
         // Обновляем все дерево - fire(undefined) обновляет весь корневой уровень
         this._onDidChangeTreeData.fire(undefined);
+    }
+    
+    getTreeMode(): 'file' | 'epic-feature-story' {
+        return this._treeMode;
+    }
+    
+    setTreeMode(mode: 'file' | 'epic-feature-story'): void {
+        if (this._treeMode !== mode) {
+            this._treeMode = mode;
+            // Очищаем кэш и обновляем дерево
+            this._testCases.clear();
+            this._onDidChangeTreeData.fire(undefined);
+        }
     }
     
     setFilters(filters: typeof this._filters): void {
@@ -344,6 +358,14 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
     }
     
     private async scanTestCases(): Promise<void> {
+        if (this._treeMode === 'epic-feature-story') {
+            await this.buildEpicFeatureStoryTree();
+        } else {
+            await this.buildFileTree();
+        }
+    }
+    
+    private async buildFileTree(): Promise<void> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {
             this._testCases = new Map();
@@ -424,6 +446,319 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
                 console.log(`Skipping file ${file.fsPath}: ${e}`);
             }
         }
+        
+        // Сортируем дерево: сначала папки, потом тест-кейсы
+        const sortNode = (node: TestCaseNode) => {
+            node.children.sort((a, b) => {
+                if (a.type === 'folder' && b.type === 'testcase') return -1;
+                if (a.type === 'testcase' && b.type === 'folder') return 1;
+                return a.name.localeCompare(b.name);
+            });
+            node.children.forEach(child => {
+                if (child.type === 'folder') {
+                    sortNode(child);
+                }
+            });
+        };
+        sortNode(rootNode);
+        
+        this._testCases = tree;
+    }
+    
+    private async buildEpicFeatureStoryTree(): Promise<void> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            this._testCases = new Map();
+            return;
+        }
+        
+        const files = await vscode.workspace.findFiles('**/*.md');
+        const tree = new Map<string, TestCaseNode>();
+        const rootNode: TestCaseNode = {
+            type: 'folder',
+            name: 'Root',
+            path: '',
+            children: []
+        };
+        tree.set('', rootNode);
+        
+        // Структура для хранения дерева: Epic -> Feature -> Story -> TestCases
+        interface EpicNode {
+            name: string;
+            features: Map<string, FeatureNode>;
+        }
+        
+        interface FeatureNode {
+            name: string;
+            stories: Map<string, StoryNode>;
+        }
+        
+        interface StoryNode {
+            name: string;
+            testCases: TestCaseNode[];
+        }
+        
+        const epics = new Map<string, EpicNode>();
+        const testCasesWithoutEpic = new Map<string, TestCaseNode>(); // Feature -> TestCases (без Epic)
+        const testCasesWithoutFeature = new Map<string, TestCaseNode>(); // Story -> TestCases (без Epic и Feature)
+        const testCasesWithoutStory: TestCaseNode[] = []; // TestCases без Epic, Feature, Story
+        
+        for (const file of files) {
+            try {
+                const content = await vscode.workspace.fs.readFile(file);
+                const contentStr = content.toString();
+                
+                // Парсим markdown файл
+                const mdCase = MarkdownTestCaseParser.parse(contentStr);
+                
+                // Проверяем, что это тест-кейс (есть заголовок и шаги)
+                if (mdCase.title && mdCase.steps && mdCase.steps.length > 0) {
+                    const relativePath = vscode.workspace.asRelativePath(file);
+                    
+                    // Преобразуем MarkdownTestCase в TestCaseData
+                    const testCase = this.convertMarkdownToTestCase(mdCase, file.fsPath);
+                    
+                    // Добавляем тест-кейс с именем из заголовка (#)
+                    const testCaseNode: TestCaseNode = {
+                        type: 'testcase',
+                        name: mdCase.title || path.basename(file.fsPath, '.md'),
+                        path: relativePath,
+                        filePath: file.fsPath,
+                        relativePath: relativePath,
+                        data: testCase,
+                        children: []
+                    };
+                    
+                    const epic = (testCase.epic || '').trim();
+                    const feature = (testCase.feature || '').trim();
+                    const story = (testCase.story || '').trim();
+                    
+                    // Строим дерево по структуре Epic -> Feature -> Story -> TestCases
+                    if (epic) {
+                        // Есть Epic
+                        if (!epics.has(epic)) {
+                            epics.set(epic, {
+                                name: epic,
+                                features: new Map()
+                            });
+                        }
+                        
+                        const epicNode = epics.get(epic)!;
+                        
+                        if (feature) {
+                            // Есть Epic и Feature
+                            if (!epicNode.features.has(feature)) {
+                                epicNode.features.set(feature, {
+                                    name: feature,
+                                    stories: new Map()
+                                });
+                            }
+                            
+                            const featureNode = epicNode.features.get(feature)!;
+                            
+                            if (story) {
+                                // Есть Epic, Feature и Story
+                                if (!featureNode.stories.has(story)) {
+                                    featureNode.stories.set(story, {
+                                        name: story,
+                                        testCases: []
+                                    });
+                                }
+                                
+                                featureNode.stories.get(story)!.testCases.push(testCaseNode);
+                            } else {
+                                // Есть Epic и Feature, но нет Story - добавляем напрямую в Feature
+                                if (!featureNode.stories.has('')) {
+                                    featureNode.stories.set('', {
+                                        name: '',
+                                        testCases: []
+                                    });
+                                }
+                                featureNode.stories.get('')!.testCases.push(testCaseNode);
+                            }
+                        } else {
+                            // Есть Epic, но нет Feature - добавляем напрямую в Epic
+                            if (!epicNode.features.has('')) {
+                                epicNode.features.set('', {
+                                    name: '',
+                                    stories: new Map()
+                                });
+                            }
+                            
+                            const featureNode = epicNode.features.get('')!;
+                            
+                            if (story) {
+                                // Есть Epic и Story, но нет Feature
+                                if (!featureNode.stories.has(story)) {
+                                    featureNode.stories.set(story, {
+                                        name: story,
+                                        testCases: []
+                                    });
+                                }
+                                featureNode.stories.get(story)!.testCases.push(testCaseNode);
+                            } else {
+                                // Только Epic
+                                if (!featureNode.stories.has('')) {
+                                    featureNode.stories.set('', {
+                                        name: '',
+                                        testCases: []
+                                    });
+                                }
+                                featureNode.stories.get('')!.testCases.push(testCaseNode);
+                            }
+                        }
+                    } else if (feature) {
+                        // Нет Epic, но есть Feature
+                        if (!testCasesWithoutEpic.has(feature)) {
+                            testCasesWithoutEpic.set(feature, {
+                                type: 'folder',
+                                name: feature,
+                                path: `feature:${feature}`,
+                                children: []
+                            });
+                        }
+                        
+                        const featureNode = testCasesWithoutEpic.get(feature)!;
+                        
+                        if (story) {
+                            // Есть Feature и Story, но нет Epic
+                            let storyNode = featureNode.children.find(
+                                child => child.type === 'folder' && child.name === story
+                            );
+                            
+                            if (!storyNode) {
+                                storyNode = {
+                                    type: 'folder',
+                                    name: story,
+                                    path: `feature:${feature}/story:${story}`,
+                                    children: []
+                                };
+                                featureNode.children.push(storyNode);
+                            }
+                            
+                            storyNode.children.push(testCaseNode);
+                        } else {
+                            // Только Feature
+                            featureNode.children.push(testCaseNode);
+                        }
+                    } else if (story) {
+                        // Нет Epic и Feature, но есть Story
+                        if (!testCasesWithoutFeature.has(story)) {
+                            testCasesWithoutFeature.set(story, {
+                                type: 'folder',
+                                name: story,
+                                path: `story:${story}`,
+                                children: []
+                            });
+                        }
+                        
+                        testCasesWithoutFeature.get(story)!.children.push(testCaseNode);
+                    } else {
+                        // Нет Epic, Feature и Story - добавляем в корень
+                        testCasesWithoutStory.push(testCaseNode);
+                    }
+                }
+            } catch (e) {
+                // Пропустить невалидные MD файлы
+                console.log(`Skipping file ${file.fsPath}: ${e}`);
+            }
+        }
+        
+        // Строим дерево из структуры данных
+        // Сначала добавляем Epics
+        const sortedEpics = Array.from(epics.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+        for (const [epicName, epicNode] of sortedEpics) {
+            const epicFolder: TestCaseNode = {
+                type: 'folder',
+                name: epicName,
+                path: `epic:${epicName}`,
+                children: []
+            };
+            
+            // Добавляем Features внутри Epic
+            const sortedFeatures = Array.from(epicNode.features.entries()).sort((a, b) => {
+                if (a[0] === '' && b[0] !== '') return 1;
+                if (a[0] !== '' && b[0] === '') return -1;
+                return a[0].localeCompare(b[0]);
+            });
+            
+            for (const [featureName, featureNode] of sortedFeatures) {
+                if (featureName) {
+                    // Есть название Feature
+                    const featureFolder: TestCaseNode = {
+                        type: 'folder',
+                        name: featureName,
+                        path: `epic:${epicName}/feature:${featureName}`,
+                        children: []
+                    };
+                    
+                    // Добавляем Stories внутри Feature
+                    const sortedStories = Array.from(featureNode.stories.entries()).sort((a, b) => {
+                        if (a[0] === '' && b[0] !== '') return 1;
+                        if (a[0] !== '' && b[0] === '') return -1;
+                        return a[0].localeCompare(b[0]);
+                    });
+                    
+                    for (const [storyName, storyNode] of sortedStories) {
+                        if (storyName) {
+                            // Есть название Story
+                            const storyFolder: TestCaseNode = {
+                                type: 'folder',
+                                name: storyName,
+                                path: `epic:${epicName}/feature:${featureName}/story:${storyName}`,
+                                children: storyNode.testCases
+                            };
+                            featureFolder.children.push(storyFolder);
+                        } else {
+                            // Нет названия Story - добавляем тест-кейсы напрямую в Feature
+                            featureFolder.children.push(...storyNode.testCases);
+                        }
+                    }
+                    
+                    epicFolder.children.push(featureFolder);
+                } else {
+                    // Нет названия Feature - добавляем Stories напрямую в Epic
+                    const sortedStories = Array.from(featureNode.stories.entries()).sort((a, b) => {
+                        if (a[0] === '' && b[0] !== '') return 1;
+                        if (a[0] !== '' && b[0] === '') return -1;
+                        return a[0].localeCompare(b[0]);
+                    });
+                    
+                    for (const [storyName, storyNode] of sortedStories) {
+                        if (storyName) {
+                            // Есть название Story
+                            const storyFolder: TestCaseNode = {
+                                type: 'folder',
+                                name: storyName,
+                                path: `epic:${epicName}/story:${storyName}`,
+                                children: storyNode.testCases
+                            };
+                            epicFolder.children.push(storyFolder);
+                        } else {
+                            // Нет названия Story - добавляем тест-кейсы напрямую в Epic
+                            epicFolder.children.push(...storyNode.testCases);
+                        }
+                    }
+                }
+            }
+            
+            rootNode.children.push(epicFolder);
+        }
+        
+        // Добавляем Features без Epic
+        const sortedFeaturesWithoutEpic = Array.from(testCasesWithoutEpic.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+        for (const [featureName, featureNode] of sortedFeaturesWithoutEpic) {
+            rootNode.children.push(featureNode);
+        }
+        
+        // Добавляем Stories без Epic и Feature
+        const sortedStoriesWithoutFeature = Array.from(testCasesWithoutFeature.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+        for (const [storyName, storyNode] of sortedStoriesWithoutFeature) {
+            rootNode.children.push(storyNode);
+        }
+        
+        // Добавляем тест-кейсы без Epic, Feature и Story
+        rootNode.children.push(...testCasesWithoutStory);
         
         // Сортируем дерево: сначала папки, потом тест-кейсы
         const sortNode = (node: TestCaseNode) => {
