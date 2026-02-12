@@ -1331,6 +1331,16 @@ export class MarkdownTestCaseRenderer {
             background-color: var(--vscode-list-activeSelectionBackground);
         }
 
+        .viewer-header-button.active {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border-color: var(--vscode-button-background);
+        }
+
+        .viewer-header-button.active:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+
         .viewer-header-button-icon {
             font-size: 16px;
             line-height: 1;
@@ -1351,6 +1361,10 @@ export class MarkdownTestCaseRenderer {
             <span class="viewer-header-button-icon">⚙️</span>
             <span>Настройки</span>
         </button>
+        <button class="viewer-header-button ${showStatusColumn ? 'active' : ''}" id="show-status-button" title="Показать/скрыть колонку статуса">
+            <span class="viewer-header-button-icon">✓</span>
+            <span>Показать статус</span>
+        </button>
     </div>
     <div class="container">
         ${this._renderContent(testCase, testersList, showStatusColumn)}
@@ -1364,6 +1378,7 @@ export class MarkdownTestCaseRenderer {
             const runTestsButton = document.getElementById('run-tests-button');
             const statisticsButton = document.getElementById('statistics-button');
             const settingsButton = document.getElementById('settings-button');
+            const showStatusButton = document.getElementById('show-status-button');
 
             if (runTestsButton) {
                 runTestsButton.addEventListener('click', function() {
@@ -1389,6 +1404,82 @@ export class MarkdownTestCaseRenderer {
                         commandId: 'testCaseViewer.openSettings'
                     });
                 });
+            }
+
+            // Toggle status column visibility
+            if (showStatusButton) {
+                // Load saved state from localStorage
+                const savedState = localStorage.getItem('showStatusColumn');
+                let isStatusColumnVisible = savedState !== null ? savedState === 'true' : ${showStatusColumn ? 'true' : 'false'};
+                
+                // Update button state and column visibility on load
+                function updateStatusColumnVisibility(visible) {
+                    const stepsTableHeader = document.querySelector('.steps-table-header');
+                    const stepsTableRows = document.querySelectorAll('.steps-table-row');
+                    const statusHeaderCells = document.querySelectorAll('.steps-table-header-cell.status-cell');
+                    const statusCells = document.querySelectorAll('.steps-table-cell.status-cell');
+                    
+                    if (visible) {
+                        // Show status column
+                        showStatusButton.classList.add('active');
+                        statusHeaderCells.forEach(cell => cell.style.display = '');
+                        statusCells.forEach(cell => cell.style.display = '');
+                        
+                        // Update grid columns
+                        const gridColumns = '120px 1fr 1fr 100px';
+                        if (stepsTableHeader) {
+                            stepsTableHeader.style.gridTemplateColumns = gridColumns;
+                        }
+                        stepsTableRows.forEach(row => {
+                            row.style.gridTemplateColumns = gridColumns;
+                        });
+                    } else {
+                        // Hide status column
+                        showStatusButton.classList.remove('active');
+                        statusHeaderCells.forEach(cell => cell.style.display = 'none');
+                        statusCells.forEach(cell => cell.style.display = 'none');
+                        
+                        // Update grid columns
+                        const gridColumns = '120px 1fr 1fr';
+                        if (stepsTableHeader) {
+                            stepsTableHeader.style.gridTemplateColumns = gridColumns;
+                        }
+                        stepsTableRows.forEach(row => {
+                            row.style.gridTemplateColumns = gridColumns;
+                        });
+                    }
+                    
+                    // Save state to localStorage
+                    localStorage.setItem('showStatusColumn', visible.toString());
+                }
+                
+                // Make function available globally for dynamic updates
+                window.updateStatusColumnVisibility = updateStatusColumnVisibility;
+                
+                // Initialize on load
+                updateStatusColumnVisibility(isStatusColumnVisible);
+                
+                // Toggle on button click
+                showStatusButton.addEventListener('click', function() {
+                    isStatusColumnVisible = !isStatusColumnVisible;
+                    updateStatusColumnVisibility(isStatusColumnVisible);
+                });
+                
+                // Re-apply visibility when new rows are added (using MutationObserver)
+                const stepsTableBody = document.getElementById('steps-table-body');
+                if (stepsTableBody) {
+                    const observer = new MutationObserver(function(mutations) {
+                        mutations.forEach(function(mutation) {
+                            if (mutation.addedNodes.length > 0) {
+                                // New rows added, update their visibility
+                                setTimeout(() => {
+                                    updateStatusColumnVisibility(isStatusColumnVisible);
+                                }, 0);
+                            }
+                        });
+                    });
+                    observer.observe(stepsTableBody, { childList: true, subtree: true });
+                }
             }
 
             // Section collapse/expand
