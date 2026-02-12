@@ -259,9 +259,6 @@ export class MarkdownTestCaseRenderer {
             width: 100%;
             display: flex;
             flex-direction: column;
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 4px;
-            overflow: hidden;
             font-size: 14px;
         }
 
@@ -274,12 +271,11 @@ export class MarkdownTestCaseRenderer {
         .steps-table-header {
             display: grid;
             grid-template-columns: 120px 1fr 1fr 100px;
-            background-color: var(--vscode-editor-inactiveSelectionBackground);
-            border-bottom: 2px solid var(--vscode-panel-border);
+            border-bottom: 1px solid var(--vscode-panel-border);
         }
 
         .steps-table-header-cell {
-            padding: 12px;
+            padding: 8px 12px;
             font-weight: 600;
             color: var(--vscode-foreground);
             text-align: left;
@@ -329,11 +325,11 @@ export class MarkdownTestCaseRenderer {
         }
 
         .steps-table-cell {
-            padding: 12px;
-            border-right: 1px solid var(--vscode-panel-border);
+            padding: 8px 12px;
             vertical-align: top;
             display: flex;
             align-items: flex-start;
+            border-right: 1px solid var(--vscode-panel-border);
         }
 
         .steps-table-cell:last-child {
@@ -1094,21 +1090,17 @@ export class MarkdownTestCaseRenderer {
             width: 100%;
             display: flex;
             flex-direction: column;
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 4px;
-            overflow: hidden;
             font-size: 14px;
         }
 
         .comments-table-header {
             display: grid;
             grid-template-columns: 50px 1fr 120px;
-            background-color: var(--vscode-editor-inactiveSelectionBackground);
-            border-bottom: 2px solid var(--vscode-panel-border);
+            border-bottom: 1px solid var(--vscode-panel-border);
         }
 
         .comments-table-header-cell {
-            padding: 12px;
+            padding: 8px 12px;
             font-weight: 600;
             color: var(--vscode-foreground);
             text-align: left;
@@ -1140,7 +1132,7 @@ export class MarkdownTestCaseRenderer {
         }
 
         .comments-table-cell {
-            padding: 12px;
+            padding: 8px 12px;
             border-right: 1px solid var(--vscode-panel-border);
             vertical-align: top;
             display: flex;
@@ -1200,9 +1192,7 @@ export class MarkdownTestCaseRenderer {
             display: none;
             flex-direction: column;
             gap: 8px;
-            padding: 12px;
-            background-color: var(--vscode-editor-inactiveSelectionBackground);
-            border-radius: 4px;
+            padding: 12px 0;
             margin-bottom: 12px;
         }
 
