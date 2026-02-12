@@ -818,6 +818,74 @@ export class MarkdownTestCaseRenderer {
             border-top: 1px solid var(--vscode-panel-border);
             font-size: 13px;
         }
+
+        .viewer-attachments-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--vscode-panel-border);
+            font-size: 13px;
+        }
+
+        .attachments-header-actions {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .attachments-inline-container {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+            position: relative;
+        }
+
+        .attachments-list-inline {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .attachment-item {
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        .attachment-link {
+            color: var(--vscode-textLink-foreground);
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .attachment-link:hover {
+            text-decoration: underline;
+        }
+
+        .viewer-attachments-row .attachments-add-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid var(--vscode-input-border);
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            height: 20px;
+            min-width: 20px;
+            transition: background-color 0.2s, border-color 0.2s;
+            margin-left: 4px;
+        }
+
+        .viewer-attachments-row .attachments-add-btn:hover {
+            background-color: var(--vscode-list-hoverBackground);
+            border-color: var(--vscode-focusBorder);
+        }
         
         .preconditions-inline-container {
             display: flex;
@@ -2142,6 +2210,34 @@ export class MarkdownTestCaseRenderer {
                 });
             }
 
+            // Handle attachments
+            // Обработка кликов по вложениям
+            document.querySelectorAll('.attachment-link').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const relativePath = this.getAttribute('data-relative-path');
+                    if (relativePath) {
+                        vscode.postMessage({
+                            command: 'openFile',
+                            relativePath: relativePath
+                        });
+                    }
+                });
+            });
+
+            // Обработка добавления файла
+            const addAttachmentBtn = document.getElementById('attachments-add-btn');
+            if (addAttachmentBtn) {
+                addAttachmentBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Отправляем команду для выбора файла
+                    vscode.postMessage({
+                        command: 'selectFileToAttach'
+                    });
+                });
+            }
+
             // Fix height calculation on initial load
             // This ensures proper height calculation when panel is first opened
             function fixInitialHeight() {
@@ -2296,6 +2392,13 @@ export class MarkdownTestCaseRenderer {
                 </div>
                 <div class="viewer-preconditions-row">
                     ${this._renderPreconditionsInline(testCase.preconditions || '')}
+                </div>
+                <div class="viewer-attachments-row">
+                    <span class="viewer-meta-label">Вложения:</span>
+                    <div class="attachments-header-actions">
+                        <button class="attachments-add-btn" id="attachments-add-btn" title="Добавить файл">+</button>
+                    </div>
+                    ${this._renderAttachmentsInline(testCase.attachedDocuments || [])}
                 </div>
             </div>
             ${this._renderSection('steps', 'Шаги тестирования', this._renderSteps(testCase.steps || [], showStatusColumn))}
@@ -2460,6 +2563,30 @@ export class MarkdownTestCaseRenderer {
                         placeholder="Предусловия для выполнения тест-кейса"
                         rows="${initialRows}"
                     >${this.escapeHtml(preconditions)}</textarea>
+                </div>
+            </div>
+        `;
+    }
+
+    private static _renderAttachmentsInline(documents: string[]): string {
+        // Parse documents from markdown format [Название](путь)
+        const parsedDocuments = documents.map(doc => {
+            const match = doc.match(/\[([^\]]+)\]\(([^)]+)\)/);
+            return {
+                displayName: match ? match[1] : doc,
+                relativePath: match ? match[2] : '',
+                raw: doc
+            };
+        });
+
+        return `
+            <div class="attachments-inline-container">
+                <div class="attachments-list-inline" id="attachments-list-inline">
+                    ${parsedDocuments.map((doc, index) => `
+                        <div class="attachment-item" data-attachment-index="${index}">
+                            <a href="#" class="attachment-link" data-relative-path="${this.escapeHtml(doc.relativePath)}">${this.escapeHtml(doc.displayName || 'Без названия')}</a>
+                        </div>
+                    `).join('')}
                 </div>
             </div>
         `;

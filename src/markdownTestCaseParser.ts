@@ -14,6 +14,7 @@ export interface MarkdownTestCase {
         testType?: string;
     };
     links?: string[];
+    attachedDocuments?: string[];
     epicFeatureStory: {
         epic?: string;
         feature?: string;
@@ -41,6 +42,7 @@ export class MarkdownTestCaseParser {
             title: '',
             metadata: {},
             links: [],
+            attachedDocuments: [],
             epicFeatureStory: {},
             tags: [],
             steps: [],
@@ -244,6 +246,16 @@ export class MarkdownTestCaseParser {
                 // linkMatch[0] содержит ровно `[Текст](url)`
                 result.links.push(linkMatch[0].trim());
             }
+        } else if (section === 'Вложения') {
+            // Обработка ссылок на файлы в формате [Название](относительный/путь/к/файлу)
+            const linkMatch = line.match(/\[([^\]]+)\]\(([^)]+)\)/);
+            if (linkMatch) {
+                if (!result.attachedDocuments) {
+                    result.attachedDocuments = [];
+                }
+                // Сохраняем относительный путь к файлу в формате [Название](путь)
+                result.attachedDocuments.push(linkMatch[0].trim());
+            }
         } else if (section === 'Теги (tags)' || section === 'Теги') {
             // Parse tags (comma-separated)
             const tags = line.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
@@ -321,6 +333,15 @@ export class MarkdownTestCaseParser {
         lines.push('## Предусловия (preconditions)');
         if (testCase.preconditions) {
             lines.push(testCase.preconditions);
+        }
+        lines.push('');
+
+        // Вложения
+        lines.push('## Вложения');
+        if (testCase.attachedDocuments && testCase.attachedDocuments.length > 0) {
+            testCase.attachedDocuments.forEach(doc => {
+                lines.push(` - ${doc}`);
+            });
         }
         lines.push('');
 

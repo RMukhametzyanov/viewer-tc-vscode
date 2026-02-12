@@ -61,6 +61,18 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                 case 'addTag':
                     await SettingsProvider.addTag(message.tag);
                     return;
+                case 'openFile':
+                    await this._openFile(message.relativePath);
+                    return;
+                case 'addAttachedDocument':
+                    await this._addAttachedDocument(message.relativePath, message.displayName);
+                    return;
+                case 'removeAttachedDocument':
+                    await this._removeAttachedDocument(message.index);
+                    return;
+                case 'selectFileToAttach':
+                    await this._selectFileToAttach();
+                    return;
             }
         });
 
@@ -659,6 +671,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                                testCase.preconditions ||
                                (testCase.tags && testCase.tags.length > 0) ||
                                (testCase.links && testCase.links.length > 0) ||
+                               (testCase.attachedDocuments && testCase.attachedDocuments.length > 0) ||
                                (testCase.comments && testCase.comments.length > 0) ||
                                Object.keys(testCase.epicFeatureStory).length > 0;
             
@@ -712,6 +725,171 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
 
     private _getHtmlForWebview(webview: vscode.Webview): string {
         return this._getEmptyHtml();
+    }
+
+    private async _openFile(relativePath: string) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return;
+        }
+
+        try {
+            // Получаем URI текущего файла тест-кейса
+            const currentFileUri = activeEditor.document.uri;
+            const workspaceFolder = vscode.workspace.getWorkspaceFolder(currentFileUri);
+            
+            if (!workspaceFolder) {
+                vscode.window.showErrorMessage('Не удалось определить рабочую папку');
+                return;
+            }
+
+            // Строим абсолютный путь к файлу
+            const targetUri = vscode.Uri.joinPath(workspaceFolder.uri, relativePath);
+            
+            // Проверяем существование файла
+            try {
+                await vscode.workspace.fs.stat(targetUri);
+            } catch {
+                vscode.window.showErrorMessage(`Файл не найден: ${relativePath}`);
+                return;
+            }
+
+            // Открываем файл
+            const document = await vscode.workspace.openTextDocument(targetUri);
+            await vscode.window.showTextDocument(document);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Ошибка при открытии файла: ${error}`);
+        }
+    }
+
+    private async _addAttachedDocument(relativePath: string, displayName: string) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return;
+        }
+        
+        const isMarkdown = activeEditor.document.languageId === 'markdown' || 
+                          activeEditor.document.fileName.endsWith('.md') ||
+                          activeEditor.document.fileName.endsWith('.markdown');
+        
+        if (!isMarkdown) {
+            return;
+        }
+
+        try {
+            const document = activeEditor.document;
+            const content = document.getText();
+            const testCase = MarkdownTestCaseParser.parse(content);
+            
+            if (!testCase.attachedDocuments) {
+                testCase.attachedDocuments = [];
+            }
+            
+            // Добавляем в формате [Название](относительный/путь)
+            const linkMarkdown = `[${displayName}](${relativePath})`;
+            testCase.attachedDocuments.push(linkMarkdown);
+
+            const newContent = MarkdownTestCaseParser.serialize(testCase);
+            
+            this._isUpdatingFromFile = true;
+            this._lastUpdateTime = Date.now();
+            
+            const edit = new vscode.WorkspaceEdit();
+            const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length)
+            );
+            edit.replace(document.uri, fullRange, newContent);
+            
+            await vscode.workspace.applyEdit(edit);
+            await document.save();
+            
+            setTimeout(() => {
+                this._isUpdatingFromFile = false;
+                this.updateContent();
+            }, 200);
+        } catch (error) {
+            this._isUpdatingFromFile = false;
+            vscode.window.showErrorMessage(`Ошибка при добавлении файла: ${error}`);
+        }
+    }
+
+    private async _removeAttachedDocument(index: number) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return;
+        }
+        
+        const isMarkdown = activeEditor.document.languageId === 'markdown' || 
+                          activeEditor.document.fileName.endsWith('.md') ||
+                          activeEditor.document.fileName.endsWith('.markdown');
+        
+        if (!isMarkdown) {
+            return;
+        }
+
+        try {
+            const document = activeEditor.document;
+            const content = document.getText();
+            const testCase = MarkdownTestCaseParser.parse(content);
+            
+            if (testCase.attachedDocuments && testCase.attachedDocuments.length > index) {
+                testCase.attachedDocuments.splice(index, 1);
+            }
+
+            const newContent = MarkdownTestCaseParser.serialize(testCase);
+            
+            this._isUpdatingFromFile = true;
+            this._lastUpdateTime = Date.now();
+            
+            const edit = new vscode.WorkspaceEdit();
+            const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length)
+            );
+            edit.replace(document.uri, fullRange, newContent);
+            
+            await vscode.workspace.applyEdit(edit);
+            await document.save();
+            
+            setTimeout(() => {
+                this._isUpdatingFromFile = false;
+                this.updateContent();
+            }, 200);
+        } catch (error) {
+            this._isUpdatingFromFile = false;
+            vscode.window.showErrorMessage(`Ошибка при удалении файла: ${error}`);
+        }
+    }
+
+    private async _selectFileToAttach() {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return;
+        }
+
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(activeEditor.document.uri);
+        if (!workspaceFolder) {
+            vscode.window.showErrorMessage('Не удалось определить рабочую папку');
+            return;
+        }
+
+        // Показываем диалог выбора файла
+        const fileUri = await vscode.window.showOpenDialog({
+            canSelectFiles: true,
+            canSelectFolders: false,
+            canSelectMany: false,
+            openLabel: 'Выбрать файл',
+            defaultUri: workspaceFolder.uri
+        });
+
+        if (fileUri && fileUri[0]) {
+            const selectedUri = fileUri[0];
+            const relativePath = vscode.workspace.asRelativePath(selectedUri);
+            const fileName = selectedUri.path.split('/').pop() || selectedUri.path.split('\\').pop() || 'Файл';
+            
+            await this._addAttachedDocument(relativePath, fileName);
+        }
     }
 }
 
