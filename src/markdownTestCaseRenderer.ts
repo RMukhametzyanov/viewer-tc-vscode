@@ -463,11 +463,53 @@ export class MarkdownTestCaseRenderer {
         .step-cell-editable.status-failed {
             color: var(--vscode-errorForeground);
             font-weight: 500;
+            text-decoration: underline;
+            text-decoration-style: dotted;
+            text-underline-offset: 2px;
+            cursor: help;
+        }
+        
+        .step-cell-editable.status-failed:hover {
+            opacity: 0.8;
+            text-decoration-style: solid;
         }
         
         .step-cell-editable.status-skipped {
             color: var(--vscode-descriptionForeground);
             font-style: italic;
+            text-decoration: underline;
+            text-decoration-style: dotted;
+            text-underline-offset: 2px;
+            cursor: help;
+        }
+        
+        .step-cell-editable.status-skipped:hover {
+            opacity: 0.8;
+            text-decoration-style: solid;
+        }
+        
+        /* Для статусов с причиной (имеют title) добавляем визуальный индикатор - иконку информации */
+        .step-cell-editable[data-step-field="status"][title]:not([title=""]) {
+            position: relative;
+            padding-right: 20px;
+        }
+        
+        .step-cell-editable[data-step-field="status"][title]:not([title=""]):after {
+            content: 'ℹ';
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 11px;
+            opacity: 0.5;
+            pointer-events: none;
+            color: var(--vscode-descriptionForeground);
+            font-style: normal;
+            line-height: 1;
+        }
+        
+        .step-cell-editable[data-step-field="status"][title]:not([title=""]):hover:after {
+            opacity: 0.8;
         }
         
         .step-cell-editable {
@@ -1339,7 +1381,7 @@ export class MarkdownTestCaseRenderer {
                         const statusValue = this.value.toLowerCase().trim();
                         const reason = this.getAttribute('data-step-reason') || '';
                         
-                        // Обновляем классы
+                        // Обновляем классы для всех failed/skipped статусов
                         this.classList.remove('status-failed', 'status-skipped');
                         if (statusValue === 'failed') {
                             this.classList.add('status-failed');
@@ -1347,7 +1389,7 @@ export class MarkdownTestCaseRenderer {
                             this.classList.add('status-skipped');
                         }
                         
-                        // Обновляем tooltip
+                        // Обновляем tooltip только если есть причина
                         if ((statusValue === 'failed' || statusValue === 'skipped') && reason) {
                             this.setAttribute('title', 'Причина: ' + reason);
                         } else {
@@ -2703,12 +2745,18 @@ export class MarkdownTestCaseRenderer {
             let tooltipText = '';
             let statusDisplayClass = '';
             
-            if (statusValue.toLowerCase() === 'failed' && reason) {
-                tooltipText = `Причина: ${reason}`;
+            // Применяем классы для всех failed/skipped статусов
+            const statusLower = statusValue.toLowerCase();
+            if (statusLower === 'failed') {
                 statusDisplayClass = 'status-failed';
-            } else if (statusValue.toLowerCase() === 'skipped' && reason) {
-                tooltipText = `Причина: ${reason}`;
+                if (reason) {
+                    tooltipText = `Причина: ${reason}`;
+                }
+            } else if (statusLower === 'skipped') {
                 statusDisplayClass = 'status-skipped';
+                if (reason) {
+                    tooltipText = `Причина: ${reason}`;
+                }
             }
             
             const statusCell = showStatusColumn ? `
