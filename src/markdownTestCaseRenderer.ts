@@ -741,6 +741,8 @@ export class MarkdownTestCaseRenderer {
             display: flex;
             align-items: center;
             gap: 8px;
+            cursor: pointer;
+            user-select: none;
         }
         
         .description-toggle-btn {
@@ -827,6 +829,8 @@ export class MarkdownTestCaseRenderer {
             display: flex;
             align-items: center;
             gap: 8px;
+            cursor: pointer;
+            user-select: none;
         }
         
         .preconditions-toggle-btn {
@@ -2042,61 +2046,99 @@ export class MarkdownTestCaseRenderer {
 
             // Handle description toggle
             const descriptionToggleBtn = document.getElementById('description-toggle-btn');
+            const descriptionHeader = document.querySelector('.description-header');
             const descriptionContentWrapper = document.getElementById('description-content-wrapper');
             const descriptionTextarea = document.getElementById('test-case-description');
             const descriptionToggleIcon = descriptionToggleBtn?.querySelector('.description-toggle-icon');
+            
+            function toggleDescription() {
+                if (!descriptionContentWrapper || !descriptionToggleIcon) return;
+                
+                const isCollapsed = descriptionContentWrapper.classList.contains('collapsed');
+                
+                if (isCollapsed) {
+                    // Разворачиваем
+                    descriptionContentWrapper.classList.remove('collapsed');
+                    descriptionToggleIcon.textContent = '↓';
+                    // Увеличиваем количество строк при разворачивании
+                    if (descriptionTextarea) {
+                        const lineCount = (descriptionTextarea.value || '').split('\\n').length;
+                        descriptionTextarea.setAttribute('rows', Math.max(3, Math.min(10, lineCount)).toString());
+                    }
+                } else {
+                    // Сворачиваем
+                    descriptionContentWrapper.classList.add('collapsed');
+                    descriptionToggleIcon.textContent = '→';
+                }
+            }
             
             if (descriptionToggleBtn && descriptionContentWrapper && descriptionToggleIcon) {
                 descriptionToggleBtn.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    
-                    const isCollapsed = descriptionContentWrapper.classList.contains('collapsed');
-                    
-                    if (isCollapsed) {
-                        // Разворачиваем
-                        descriptionContentWrapper.classList.remove('collapsed');
-                        descriptionToggleIcon.textContent = '>>';
-                        // Увеличиваем количество строк при разворачивании
-                        if (descriptionTextarea) {
-                            const lineCount = (descriptionTextarea.value || '').split('\\n').length;
-                            descriptionTextarea.setAttribute('rows', Math.max(3, Math.min(10, lineCount)).toString());
-                        }
-                    } else {
-                        // Сворачиваем
-                        descriptionContentWrapper.classList.add('collapsed');
-                        descriptionToggleIcon.textContent = '>';
+                    toggleDescription();
+                });
+            }
+            
+            // Обработчик клика на заголовок "Описание"
+            if (descriptionHeader && descriptionContentWrapper && descriptionToggleIcon) {
+                descriptionHeader.addEventListener('click', function(e) {
+                    // Не обрабатываем клик, если кликнули на кнопку (она обработает сама)
+                    if (e.target === descriptionToggleBtn || descriptionToggleBtn?.contains(e.target)) {
+                        return;
                     }
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleDescription();
                 });
             }
 
             // Handle preconditions toggle
             const preconditionsToggleBtn = document.getElementById('preconditions-toggle-btn');
+            const preconditionsHeader = document.querySelector('.preconditions-header');
             const preconditionsContentWrapper = document.getElementById('preconditions-content-wrapper');
             const preconditionsTextarea = document.getElementById('test-case-preconditions');
             const preconditionsToggleIcon = preconditionsToggleBtn?.querySelector('.preconditions-toggle-icon');
+            
+            function togglePreconditions() {
+                if (!preconditionsContentWrapper || !preconditionsToggleIcon) return;
+                
+                const isCollapsed = preconditionsContentWrapper.classList.contains('collapsed');
+                
+                if (isCollapsed) {
+                    // Разворачиваем
+                    preconditionsContentWrapper.classList.remove('collapsed');
+                    preconditionsToggleIcon.textContent = '↓';
+                    // Увеличиваем количество строк при разворачивании
+                    if (preconditionsTextarea) {
+                        const lineCount = (preconditionsTextarea.value || '').split('\\n').length;
+                        preconditionsTextarea.setAttribute('rows', Math.max(3, Math.min(10, lineCount)).toString());
+                    }
+                } else {
+                    // Сворачиваем
+                    preconditionsContentWrapper.classList.add('collapsed');
+                    preconditionsToggleIcon.textContent = '→';
+                }
+            }
             
             if (preconditionsToggleBtn && preconditionsContentWrapper && preconditionsToggleIcon) {
                 preconditionsToggleBtn.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
-                    
-                    const isCollapsed = preconditionsContentWrapper.classList.contains('collapsed');
-                    
-                    if (isCollapsed) {
-                        // Разворачиваем
-                        preconditionsContentWrapper.classList.remove('collapsed');
-                        preconditionsToggleIcon.textContent = '>>';
-                        // Увеличиваем количество строк при разворачивании
-                        if (preconditionsTextarea) {
-                            const lineCount = (preconditionsTextarea.value || '').split('\\n').length;
-                            preconditionsTextarea.setAttribute('rows', Math.max(3, Math.min(10, lineCount)).toString());
-                        }
-                    } else {
-                        // Сворачиваем
-                        preconditionsContentWrapper.classList.add('collapsed');
-                        preconditionsToggleIcon.textContent = '>';
+                    togglePreconditions();
+                });
+            }
+            
+            // Обработчик клика на заголовок "Предусловия"
+            if (preconditionsHeader && preconditionsContentWrapper && preconditionsToggleIcon) {
+                preconditionsHeader.addEventListener('click', function(e) {
+                    // Не обрабатываем клик, если кликнули на кнопку (она обработает сама)
+                    if (e.target === preconditionsToggleBtn || preconditionsToggleBtn?.contains(e.target)) {
+                        return;
                     }
+                    e.preventDefault();
+                    e.stopPropagation();
+                    togglePreconditions();
                 });
             }
 
@@ -2380,7 +2422,7 @@ export class MarkdownTestCaseRenderer {
                 <div class="description-header">
                     <span class="viewer-meta-label">Описание:</span>
                     <button class="description-toggle-btn" id="description-toggle-btn" title="Развернуть/свернуть описание">
-                        <span class="description-toggle-icon">></span>
+                        <span class="description-toggle-icon">→</span>
                     </button>
                 </div>
                 <div class="description-content-wrapper collapsed" id="description-content-wrapper">
@@ -2407,7 +2449,7 @@ export class MarkdownTestCaseRenderer {
                 <div class="preconditions-header">
                     <span class="viewer-meta-label">Предусловия:</span>
                     <button class="preconditions-toggle-btn" id="preconditions-toggle-btn" title="Развернуть/свернуть предусловия">
-                        <span class="preconditions-toggle-icon">></span>
+                        <span class="preconditions-toggle-icon">→</span>
                     </button>
                 </div>
                 <div class="preconditions-content-wrapper collapsed" id="preconditions-content-wrapper">
