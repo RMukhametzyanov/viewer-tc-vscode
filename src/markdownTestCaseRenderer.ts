@@ -668,23 +668,150 @@ export class MarkdownTestCaseRenderer {
             background-color: var(--vscode-button-hoverBackground);
         }
 
-        .links-add-form {
-            display: none;
+        .viewer-links-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--vscode-panel-border);
+            font-size: 13px;
+        }
+        
+        .viewer-epic-feature-story-row {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--vscode-panel-border);
+            font-size: 13px;
+        }
+        
+        .epic-feature-story-inline {
+            display: flex;
             flex-direction: column;
             gap: 8px;
-            padding: 12px;
-            background-color: var(--vscode-editor-inactiveSelectionBackground);
-            border-radius: 4px;
-            margin-bottom: 12px;
         }
-
-        .links-add-form.visible {
+        
+        .epic-feature-story-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .epic-feature-story-item .viewer-meta-label {
+            min-width: 70px;
+            flex-shrink: 0;
+        }
+        
+        .epic-feature-story-input {
+            flex: 1;
+            font-size: 13px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            padding: 4px 8px;
+            border-radius: 2px;
+            font-family: var(--vscode-font-family);
+            box-sizing: border-box;
+        }
+        
+        .epic-feature-story-input:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+        
+        .epic-feature-story-input::placeholder {
+            color: var(--vscode-descriptionForeground);
+            opacity: 0.7;
+        }
+        
+        .viewer-links-row .links-add-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid var(--vscode-input-border);
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            height: 20px;
+            min-width: 20px;
+            transition: background-color 0.2s, border-color 0.2s;
+            margin-left: 4px;
+        }
+        
+        .viewer-links-row .links-add-btn:hover {
+            background-color: var(--vscode-list-hoverBackground);
+            border-color: var(--vscode-focusBorder);
+        }
+        
+        .links-header-actions {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .links-inline-container {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+            position: relative;
+        }
+        
+        .links-list-inline {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .link-item {
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+        }
+        
+        .link-item a {
+            color: var(--vscode-textLink-foreground);
+            text-decoration: none;
+        }
+        
+        .link-item a:hover {
+            text-decoration: underline;
+        }
+        
+        .links-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            border-radius: 4px;
+            margin-top: 4px;
+            min-width: 300px;
+            max-width: 400px;
+            display: none;
+            flex-direction: column;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            padding: 8px;
+            gap: 8px;
+        }
+        
+        .links-header-actions .links-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+        }
+        
+        .links-dropdown.visible {
             display: flex;
         }
-
-        .links-add-form input {
+        
+        .links-dropdown-input {
             width: 100%;
-            font-size: 14px;
+            font-size: 13px;
             color: var(--vscode-foreground);
             background-color: var(--vscode-input-background);
             border: 1px solid var(--vscode-input-border);
@@ -693,13 +820,17 @@ export class MarkdownTestCaseRenderer {
             font-family: var(--vscode-font-family);
             box-sizing: border-box;
         }
-
-        .links-add-form input:focus {
+        
+        .links-dropdown-input:focus {
             outline: 1px solid var(--vscode-focusBorder);
             outline-offset: -1px;
         }
-
-        .links-add-form button {
+        
+        .links-dropdown-input::placeholder {
+            color: var(--vscode-descriptionForeground);
+        }
+        
+        .links-dropdown-button {
             background-color: var(--vscode-button-background);
             color: var(--vscode-button-foreground);
             border: none;
@@ -710,28 +841,9 @@ export class MarkdownTestCaseRenderer {
             font-weight: 500;
             align-self: flex-start;
         }
-
-        .links-add-form button:hover {
+        
+        .links-dropdown-button:hover {
             background-color: var(--vscode-button-hoverBackground);
-        }
-
-        .links-list {
-            list-style: none;
-            padding: 0;
-        }
-
-        .links-list li {
-            margin-bottom: 8px;
-        }
-
-        .links-list a {
-            color: var(--vscode-textLink-foreground);
-            text-decoration: none;
-            font-size: 14px;
-        }
-
-        .links-list a:hover {
-            text-decoration: underline;
         }
 
         .comments-table {
@@ -1617,13 +1729,14 @@ export class MarkdownTestCaseRenderer {
                 });
             }
 
-            // Handle links (Связи)
-            const linksAddToggle = document.getElementById('links-add-toggle');
-            const linksAddForm = document.getElementById('links-add-form');
+            // Handle links (Связи) - new minimalistic design
+            const linksAddBtn = document.getElementById('links-add-btn');
+            const linksDropdown = document.getElementById('links-dropdown');
             const newLinkTitleInput = document.getElementById('new-link-title');
             const newLinkUrlInput = document.getElementById('new-link-url');
             const addLinkButton = document.getElementById('add-link-button');
-            const linksList = document.getElementById('links-list');
+            const linksListInline = document.getElementById('links-list-inline');
+            let isLinksDropdownOpen = false;
 
             function buildLinkMarkdown(title, url) {
                 const t = (title || '').trim();
@@ -1637,61 +1750,120 @@ export class MarkdownTestCaseRenderer {
                 return '[' + t + '](' + u + ')';
             }
 
-            // Toggle add form visibility
-            if (linksAddToggle && linksAddForm) {
-                linksAddToggle.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    linksAddForm.classList.toggle('visible');
-                    if (linksAddForm.classList.contains('visible')) {
-                        newLinkTitleInput?.focus();
+            function updateLinksField() {
+                const linkItems = linksListInline.querySelectorAll('.link-item');
+                const linksArray = Array.from(linkItems).map(item => {
+                    const link = item.querySelector('a');
+                    if (link) {
+                        const title = link.textContent.trim();
+                        const url = link.getAttribute('href') || '';
+                        return buildLinkMarkdown(title, url);
                     }
-                });
-            }
-
-            // Handle adding new link
-            if (addLinkButton && newLinkTitleInput && newLinkUrlInput && linksList) {
-                const addLink = () => {
-                    const title = newLinkTitleInput.value.trim();
-                    const url = newLinkUrlInput.value.trim();
-
-                    if (!title || !url) {
-                        return;
-                    }
-
-                    const linkMarkdown = buildLinkMarkdown(title, url);
-                    const linkValue = ' - ' + linkMarkdown;
-
-                    // Find current links count
-                    const currentLinks = linksList.querySelectorAll('li').length;
-                    
+                    return '';
+                }).filter(link => link.length > 0);
+                
+                // Update links in markdown format
+                linksArray.forEach((linkMarkdown, index) => {
                     vscode.postMessage({
                         command: 'updateField',
-                        field: 'link-' + currentLinks,
-                        value: linkValue
+                        field: 'link-' + index,
+                        value: ' - ' + linkMarkdown
                     });
+                });
+                
+                // Clear remaining link fields if links were removed
+                const currentLinkCount = linksArray.length;
+                // We'll let the backend handle removing empty links at the end
+                // Just ensure we update all existing links
+            }
 
-                    newLinkTitleInput.value = '';
-                    newLinkUrlInput.value = '';
-                    linksAddForm?.classList.remove('visible');
-                };
+            function addLink(title, url) {
+                if (!title || !url) {
+                    return;
+                }
 
+                const linkMarkdown = buildLinkMarkdown(title, url);
+                const escapedTitle = title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                const escapedUrl = url.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                
+                const linkItem = document.createElement('div');
+                linkItem.className = 'link-item';
+                const linkIndex = linksListInline.querySelectorAll('.link-item').length;
+                linkItem.setAttribute('data-link-index', linkIndex.toString());
+                linkItem.innerHTML = '<a href="' + escapedUrl + '" target="_blank" rel="noopener noreferrer">' + escapedTitle + '</a>';
+                
+                linksListInline.appendChild(linkItem);
+                updateLinksField();
+                
+                // Clear inputs and close dropdown
+                if (newLinkTitleInput) newLinkTitleInput.value = '';
+                if (newLinkUrlInput) newLinkUrlInput.value = '';
+                if (linksDropdown) linksDropdown.classList.remove('visible');
+                isLinksDropdownOpen = false;
+            }
+
+            function openLinksDropdown() {
+                if (!linksDropdown || !linksAddBtn) return;
+                isLinksDropdownOpen = true;
+                linksDropdown.classList.add('visible');
+                if (newLinkTitleInput) {
+                    newLinkTitleInput.focus();
+                }
+            }
+
+            function closeLinksDropdown() {
+                if (!linksDropdown) return;
+                isLinksDropdownOpen = false;
+                linksDropdown.classList.remove('visible');
+                if (newLinkTitleInput) newLinkTitleInput.value = '';
+                if (newLinkUrlInput) newLinkUrlInput.value = '';
+            }
+
+            if (linksAddBtn && linksDropdown && newLinkTitleInput && newLinkUrlInput && addLinkButton && linksListInline) {
+                // Open dropdown on button click
+                linksAddBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (isLinksDropdownOpen) {
+                        closeLinksDropdown();
+                    } else {
+                        openLinksDropdown();
+                    }
+                });
+                
+                // Handle add link button
                 addLinkButton.addEventListener('click', function(e) {
                     e.preventDefault();
-                    addLink();
+                    e.stopPropagation();
+                    const title = newLinkTitleInput.value.trim();
+                    const url = newLinkUrlInput.value.trim();
+                    addLink(title, url);
                 });
-
+                
+                // Handle Enter key in inputs
                 newLinkTitleInput.addEventListener('keydown', function(e) {
                     if (e.key === 'Enter') {
                         e.preventDefault();
-                        addLink();
+                        newLinkUrlInput.focus();
                     }
                 });
-
+                
                 newLinkUrlInput.addEventListener('keydown', function(e) {
                     if (e.key === 'Enter') {
                         e.preventDefault();
-                        addLink();
+                        const title = newLinkTitleInput.value.trim();
+                        const url = newLinkUrlInput.value.trim();
+                        addLink(title, url);
+                    } else if (e.key === 'Escape') {
+                        closeLinksDropdown();
+                    }
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (isLinksDropdownOpen && linksDropdown && !linksDropdown.contains(e.target) && 
+                        e.target !== linksAddBtn && !linksAddBtn.contains(e.target)) {
+                        closeLinksDropdown();
                     }
                 });
             }
@@ -1818,10 +1990,34 @@ export class MarkdownTestCaseRenderer {
                     <span class="viewer-meta-label">Теги:</span>
                     ${this._renderTagsInline(testCase.tags || [])}
                 </div>
+                <div class="viewer-links-row">
+                    <span class="viewer-meta-label">Связи:</span>
+                    <div class="links-header-actions">
+                        <button class="links-add-btn" id="links-add-btn" title="Добавить связь">+</button>
+                        <div class="links-dropdown" id="links-dropdown">
+                            <input 
+                                type="text" 
+                                class="links-dropdown-input" 
+                                id="new-link-title" 
+                                placeholder="Краткое наименование"
+                                autocomplete="off"
+                            />
+                            <input 
+                                type="text" 
+                                class="links-dropdown-input" 
+                                id="new-link-url" 
+                                placeholder="Ссылка (https://...)"
+                                autocomplete="off"
+                            />
+                            <button class="links-dropdown-button" id="add-link-button">Добавить</button>
+                        </div>
+                    </div>
+                    ${this._renderLinksInline(testCase.links || [])}
+                </div>
+                <div class="viewer-epic-feature-story-row">
+                    ${this._renderEpicFeatureStoryInline(testCase.epicFeatureStory)}
+                </div>
             </div>
-            
-            ${this._renderSection('links', 'Связи', this._renderLinks(testCase.links || []), false, false, '<button class="section-add-btn" id="links-add-toggle" title="Добавить связь">+</button>')}
-            ${this._renderSection('epic-feature-story', 'Epic/Feature/Story', this._renderEpicFeatureStory(testCase.epicFeatureStory))}
             ${this._renderSection('description', 'Описание (description)', this._renderDescription(testCase.description || ''), true, true)}
             ${this._renderSection('preconditions', 'Предусловия (preconditions)', this._renderPreconditions(testCase.preconditions || ''), true, true)}
             ${this._renderSection('steps', 'Шаги тестирования', this._renderSteps(testCase.steps || [], showStatusColumn))}
@@ -1846,7 +2042,7 @@ export class MarkdownTestCaseRenderer {
         `;
     }
 
-    private static _renderLinks(links: string[]): string {
+    private static _renderLinksInline(links: string[]): string {
         // Parse links from markdown format [text](url)
         const parsedLinks = links.map(link => {
             const match = link.match(/\[([^\]]*)\]\(([^)]*)\)/);
@@ -1858,41 +2054,53 @@ export class MarkdownTestCaseRenderer {
         });
 
         return `
-            <div class="links-add-form" id="links-add-form">
-                <input 
-                    type="text" 
-                    id="new-link-title" 
-                    placeholder="Краткое наименование"
-                />
-                <input 
-                    type="text" 
-                    id="new-link-url" 
-                    placeholder="Ссылка (https://...)"
-                />
-                <button id="add-link-button">Добавить</button>
+            <div class="links-inline-container">
+                <div class="links-list-inline" id="links-list-inline">
+                    ${parsedLinks.map((link, index) => `
+                        <div class="link-item" data-link-index="${index}">
+                            <a href="${this.escapeHtml(link.url || '#')}" target="_blank" rel="noopener noreferrer">${this.escapeHtml(link.title || 'Без названия')}</a>
+                        </div>
+                    `).join('')}
+                </div>
             </div>
-            <ul class="links-list" id="links-list">
-                ${parsedLinks.map((link, index) => 
-                    `<li><a href="${this.escapeHtml(link.url || '#')}" target="_blank" rel="noopener noreferrer">${this.escapeHtml(link.title || 'Без названия')}</a></li>`
-                ).join('')}
-            </ul>
         `;
     }
 
-    private static _renderEpicFeatureStory(efs: { epic?: string; feature?: string; story?: string }): string {
+    private static _renderEpicFeatureStoryInline(efs: { epic?: string; feature?: string; story?: string }): string {
         return `
-            <div class="info-grid">
-                <div class="info-item">
-                    <span class="info-label">Epic</span>
-                    <input type="text" class="info-value-editable" data-field="epic" value="${this.escapeHtml(efs.epic || '')}" />
+            <div class="epic-feature-story-inline">
+                <div class="epic-feature-story-item">
+                    <span class="viewer-meta-label">Epic:</span>
+                    <input 
+                        type="text" 
+                        class="epic-feature-story-input" 
+                        id="test-case-epic" 
+                        data-field="epic" 
+                        value="${this.escapeHtml(efs.epic || '')}" 
+                        placeholder="Укажите название Epic"
+                    />
                 </div>
-                <div class="info-item">
-                    <span class="info-label">Feature</span>
-                    <input type="text" class="info-value-editable" data-field="feature" value="${this.escapeHtml(efs.feature || '')}" />
+                <div class="epic-feature-story-item">
+                    <span class="viewer-meta-label">Feature:</span>
+                    <input 
+                        type="text" 
+                        class="epic-feature-story-input" 
+                        id="test-case-feature" 
+                        data-field="feature" 
+                        value="${this.escapeHtml(efs.feature || '')}" 
+                        placeholder="Укажите название Feature"
+                    />
                 </div>
-                <div class="info-item">
-                    <span class="info-label">Story</span>
-                    <input type="text" class="info-value-editable" data-field="story" value="${this.escapeHtml(efs.story || '')}" />
+                <div class="epic-feature-story-item">
+                    <span class="viewer-meta-label">Story:</span>
+                    <input 
+                        type="text" 
+                        class="epic-feature-story-input" 
+                        id="test-case-story" 
+                        data-field="story" 
+                        value="${this.escapeHtml(efs.story || '')}" 
+                        placeholder="Укажите название Story"
+                    />
                 </div>
             </div>
         `;
