@@ -5,6 +5,7 @@ import { MarkdownTestCaseSidebarProvider } from './markdownTestCaseSidebarProvid
 import { SettingsProvider } from './settingsProvider';
 import { TestCaseRunnerProvider } from './testCaseRunnerProvider';
 import { TestCaseTreeViewProvider, TestCaseTreeItem } from './testCaseTreeViewProvider';
+import { TestCaseStatisticsPanel } from './testCaseStatisticsPanel';
 
 function generateUUID(): string {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -367,6 +368,12 @@ export async function activate(context: vscode.ExtensionContext) {
                     vscode.window.showErrorMessage(`Ошибка при удалении: ${error}`);
                 }
             }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.showStatistics', () => {
+            TestCaseStatisticsPanel.createOrShow(context);
         })
     );
 

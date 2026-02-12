@@ -76,6 +76,9 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                 case 'executeCommand':
                     await vscode.commands.executeCommand(message.commandId);
                     return;
+                case 'openStatistics':
+                    await vscode.commands.executeCommand('testCaseViewer.showStatistics');
+                    return;
             }
         });
 

@@ -107,6 +107,9 @@ export class TestCaseEditorProvider implements vscode.CustomTextEditorProvider {
                         updateWebview();
                     }, 200);
                     return;
+                case 'openStatistics':
+                    await vscode.commands.executeCommand('testCaseViewer.showStatistics');
+                    return;
             }
         });
 

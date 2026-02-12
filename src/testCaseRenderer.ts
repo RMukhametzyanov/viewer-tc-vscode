@@ -544,6 +544,29 @@ export class TestCaseRenderer {
             border-bottom: 1px solid var(--vscode-panel-border);
         }
         
+        .viewer-header-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            justify-content: flex-end;
+        }
+        
+        .viewer-header-btn {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: var(--vscode-font-family);
+        }
+        
+        .viewer-header-btn:hover {
+            background-color: var(--vscode-button-hoverBackground);
+        }
+        
         .viewer-title {
             font-size: 24px;
             font-weight: 600;
@@ -1590,6 +1613,9 @@ export class TestCaseRenderer {
                         `}
                     </div>
                 </div>
+                <div class="viewer-header-actions">
+                    <button class="viewer-header-btn" id="statistics-btn">Статистика</button>
+                </div>
             </div>
             
             <div class="viewer-section-title">Описание</div>
@@ -2272,6 +2298,16 @@ export class TestCaseRenderer {
                     }
                 }
             });
+            
+            // Handle statistics button
+            const statisticsBtn = document.getElementById('statistics-btn');
+            if (statisticsBtn) {
+                statisticsBtn.addEventListener('click', function() {
+                    vscode.postMessage({
+                        command: 'openStatistics'
+                    });
+                });
+            }
         })();
     </script>
 </body>

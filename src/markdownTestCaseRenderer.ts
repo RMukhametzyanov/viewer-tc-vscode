@@ -1343,6 +1343,10 @@ export class MarkdownTestCaseRenderer {
             <span class="viewer-header-button-icon">▶</span>
             <span>Запуск тест-кейсов</span>
         </button>
+        <button class="viewer-header-button" id="statistics-button" title="Открыть статистику">
+            <span class="viewer-header-button-icon">📊</span>
+            <span>Статистика</span>
+        </button>
         <button class="viewer-header-button" id="settings-button" title="Открыть настройки">
             <span class="viewer-header-button-icon">⚙️</span>
             <span>Настройки</span>
@@ -1358,6 +1362,7 @@ export class MarkdownTestCaseRenderer {
 
             // Header button handlers
             const runTestsButton = document.getElementById('run-tests-button');
+            const statisticsButton = document.getElementById('statistics-button');
             const settingsButton = document.getElementById('settings-button');
 
             if (runTestsButton) {
@@ -1365,6 +1370,14 @@ export class MarkdownTestCaseRenderer {
                     vscode.postMessage({
                         command: 'executeCommand',
                         commandId: 'testCaseViewer.createStandaloneHtml'
+                    });
+                });
+            }
+
+            if (statisticsButton) {
+                statisticsButton.addEventListener('click', function() {
+                    vscode.postMessage({
+                        command: 'openStatistics'
                     });
                 });
             }
