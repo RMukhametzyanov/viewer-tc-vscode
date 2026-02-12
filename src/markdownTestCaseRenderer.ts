@@ -724,6 +724,178 @@ export class MarkdownTestCaseRenderer {
             opacity: 0.7;
         }
         
+        .viewer-description-row {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--vscode-panel-border);
+            font-size: 13px;
+        }
+        
+        .description-inline-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .description-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .description-toggle-btn {
+            background: transparent;
+            border: none;
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 4px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        
+        .description-toggle-btn:hover {
+            opacity: 1;
+        }
+        
+        .description-toggle-icon {
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+        
+        .description-content-wrapper {
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease;
+            margin-top: 8px;
+        }
+        
+        .description-content-wrapper.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin-top: 0;
+            overflow: hidden;
+        }
+        
+        .description-content-wrapper.collapsed .description-inline-textarea {
+            display: none;
+        }
+        
+        .description-inline-textarea {
+            width: 100%;
+            font-size: 13px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            padding: 6px 8px;
+            border-radius: 2px;
+            font-family: var(--vscode-font-family);
+            box-sizing: border-box;
+            resize: vertical;
+            min-height: 60px;
+            line-height: 1.5;
+        }
+        
+        .description-inline-textarea:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+        
+        .description-inline-textarea::placeholder {
+            color: var(--vscode-descriptionForeground);
+            opacity: 0.7;
+        }
+        
+        .viewer-preconditions-row {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--vscode-panel-border);
+            font-size: 13px;
+        }
+        
+        .preconditions-inline-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .preconditions-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .preconditions-toggle-btn {
+            background: transparent;
+            border: none;
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 4px;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        
+        .preconditions-toggle-btn:hover {
+            opacity: 1;
+        }
+        
+        .preconditions-toggle-icon {
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+            transition: transform 0.2s;
+        }
+        
+        .preconditions-content-wrapper {
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease;
+            margin-top: 8px;
+        }
+        
+        .preconditions-content-wrapper.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin-top: 0;
+            overflow: hidden;
+        }
+        
+        .preconditions-content-wrapper.collapsed .preconditions-inline-textarea {
+            display: none;
+        }
+        
+        .preconditions-inline-textarea {
+            width: 100%;
+            font-size: 13px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-input-background);
+            border: 1px solid var(--vscode-input-border);
+            padding: 6px 8px;
+            border-radius: 2px;
+            font-family: var(--vscode-font-family);
+            box-sizing: border-box;
+            resize: vertical;
+            min-height: 60px;
+            line-height: 1.5;
+        }
+        
+        .preconditions-inline-textarea:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+        
+        .preconditions-inline-textarea::placeholder {
+            color: var(--vscode-descriptionForeground);
+            opacity: 0.7;
+        }
+        
         .viewer-links-row .links-add-btn {
             display: inline-flex;
             align-items: center;
@@ -1867,7 +2039,67 @@ export class MarkdownTestCaseRenderer {
                     }
                 });
             }
+
+            // Handle description toggle
+            const descriptionToggleBtn = document.getElementById('description-toggle-btn');
+            const descriptionContentWrapper = document.getElementById('description-content-wrapper');
+            const descriptionTextarea = document.getElementById('test-case-description');
+            const descriptionToggleIcon = descriptionToggleBtn?.querySelector('.description-toggle-icon');
             
+            if (descriptionToggleBtn && descriptionContentWrapper && descriptionToggleIcon) {
+                descriptionToggleBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const isCollapsed = descriptionContentWrapper.classList.contains('collapsed');
+                    
+                    if (isCollapsed) {
+                        // Разворачиваем
+                        descriptionContentWrapper.classList.remove('collapsed');
+                        descriptionToggleIcon.textContent = '>>';
+                        // Увеличиваем количество строк при разворачивании
+                        if (descriptionTextarea) {
+                            const lineCount = (descriptionTextarea.value || '').split('\\n').length;
+                            descriptionTextarea.setAttribute('rows', Math.max(3, Math.min(10, lineCount)).toString());
+                        }
+                    } else {
+                        // Сворачиваем
+                        descriptionContentWrapper.classList.add('collapsed');
+                        descriptionToggleIcon.textContent = '>';
+                    }
+                });
+            }
+
+            // Handle preconditions toggle
+            const preconditionsToggleBtn = document.getElementById('preconditions-toggle-btn');
+            const preconditionsContentWrapper = document.getElementById('preconditions-content-wrapper');
+            const preconditionsTextarea = document.getElementById('test-case-preconditions');
+            const preconditionsToggleIcon = preconditionsToggleBtn?.querySelector('.preconditions-toggle-icon');
+            
+            if (preconditionsToggleBtn && preconditionsContentWrapper && preconditionsToggleIcon) {
+                preconditionsToggleBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const isCollapsed = preconditionsContentWrapper.classList.contains('collapsed');
+                    
+                    if (isCollapsed) {
+                        // Разворачиваем
+                        preconditionsContentWrapper.classList.remove('collapsed');
+                        preconditionsToggleIcon.textContent = '>>';
+                        // Увеличиваем количество строк при разворачивании
+                        if (preconditionsTextarea) {
+                            const lineCount = (preconditionsTextarea.value || '').split('\\n').length;
+                            preconditionsTextarea.setAttribute('rows', Math.max(3, Math.min(10, lineCount)).toString());
+                        }
+                    } else {
+                        // Сворачиваем
+                        preconditionsContentWrapper.classList.add('collapsed');
+                        preconditionsToggleIcon.textContent = '>';
+                    }
+                });
+            }
+
             // Fix height calculation on initial load
             // This ensures proper height calculation when panel is first opened
             function fixInitialHeight() {
@@ -2017,9 +2249,13 @@ export class MarkdownTestCaseRenderer {
                 <div class="viewer-epic-feature-story-row">
                     ${this._renderEpicFeatureStoryInline(testCase.epicFeatureStory)}
                 </div>
+                <div class="viewer-description-row">
+                    ${this._renderDescriptionInline(testCase.description || '')}
+                </div>
+                <div class="viewer-preconditions-row">
+                    ${this._renderPreconditionsInline(testCase.preconditions || '')}
+                </div>
             </div>
-            ${this._renderSection('description', 'Описание (description)', this._renderDescription(testCase.description || ''), true, true)}
-            ${this._renderSection('preconditions', 'Предусловия (preconditions)', this._renderPreconditions(testCase.preconditions || ''), true, true)}
             ${this._renderSection('steps', 'Шаги тестирования', this._renderSteps(testCase.steps || [], showStatusColumn))}
             ${this._renderSection('comments', 'Комментарии', this._renderComments(testCase.comments || []), false, false, '<button class="section-add-btn" id="comments-add-toggle" title="Добавить комментарий">+</button>')}
         `;
@@ -2133,25 +2369,57 @@ export class MarkdownTestCaseRenderer {
         `;
     }
 
-    private static _renderDescription(description: string): string {
+    private static _renderDescriptionInline(description: string): string {
+        const lines = description.split('\\n');
+        const lineCount = lines.length;
+        const isCollapsed = true; // По умолчанию свернуто
+        const initialRows = Math.max(3, Math.min(10, lineCount));
+        
         return `
-            <textarea 
-                class="viewer-description" 
-                id="test-case-description" 
-                data-field="description"
-                placeholder="Описание тест-кейса"
-            >${this.escapeHtml(description)}</textarea>
+            <div class="description-inline-container">
+                <div class="description-header">
+                    <span class="viewer-meta-label">Описание:</span>
+                    <button class="description-toggle-btn" id="description-toggle-btn" title="Развернуть/свернуть описание">
+                        <span class="description-toggle-icon">></span>
+                    </button>
+                </div>
+                <div class="description-content-wrapper collapsed" id="description-content-wrapper">
+                    <textarea 
+                        class="description-inline-textarea" 
+                        id="test-case-description" 
+                        data-field="description"
+                        placeholder="Описание тест-кейса"
+                        rows="${initialRows}"
+                    >${this.escapeHtml(description)}</textarea>
+                </div>
+            </div>
         `;
     }
 
-    private static _renderPreconditions(preconditions: string): string {
+    private static _renderPreconditionsInline(preconditions: string): string {
+        const lines = preconditions.split('\\n');
+        const lineCount = lines.length;
+        const isCollapsed = true; // По умолчанию свернуто
+        const initialRows = Math.max(3, Math.min(10, lineCount));
+        
         return `
-            <textarea 
-                class="viewer-description" 
-                id="test-case-preconditions" 
-                data-field="preconditions"
-                placeholder="Предусловия для выполнения тест-кейса"
-            >${this.escapeHtml(preconditions)}</textarea>
+            <div class="preconditions-inline-container">
+                <div class="preconditions-header">
+                    <span class="viewer-meta-label">Предусловия:</span>
+                    <button class="preconditions-toggle-btn" id="preconditions-toggle-btn" title="Развернуть/свернуть предусловия">
+                        <span class="preconditions-toggle-icon">></span>
+                    </button>
+                </div>
+                <div class="preconditions-content-wrapper collapsed" id="preconditions-content-wrapper">
+                    <textarea 
+                        class="preconditions-inline-textarea" 
+                        id="test-case-preconditions" 
+                        data-field="preconditions"
+                        placeholder="Предусловия для выполнения тест-кейса"
+                        rows="${initialRows}"
+                    >${this.escapeHtml(preconditions)}</textarea>
+                </div>
+            </div>
         `;
     }
 
