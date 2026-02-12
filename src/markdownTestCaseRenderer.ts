@@ -40,7 +40,8 @@ export class MarkdownTestCaseRenderer {
             padding: 24px;
             line-height: 1.5;
             margin: 0;
-            min-height: 100%;
+            height: auto;
+            overflow: visible;
         }
         
         .container {
@@ -254,7 +255,7 @@ export class MarkdownTestCaseRenderer {
             margin-bottom: 20px;
         }
         
-        .steps-table {
+        .steps-table-wrapper {
             width: 100%;
             display: flex;
             flex-direction: column;
@@ -264,9 +265,15 @@ export class MarkdownTestCaseRenderer {
             font-size: 14px;
         }
 
+        .steps-table {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
         .steps-table-header {
             display: grid;
-            grid-template-columns: 120px 1fr 1fr 100px 100px;
+            grid-template-columns: 120px 1fr 1fr 100px;
             background-color: var(--vscode-editor-inactiveSelectionBackground);
             border-bottom: 2px solid var(--vscode-panel-border);
         }
@@ -292,26 +299,33 @@ export class MarkdownTestCaseRenderer {
             flex-direction: column;
         }
 
-        .steps-table-row {
-            display: grid;
-            grid-template-columns: 120px 1fr 1fr 100px 100px;
+        .steps-row-wrapper {
+            display: flex;
+            align-items: stretch;
             border-bottom: 1px solid var(--vscode-panel-border);
             background-color: var(--vscode-editor-background);
             transition: background-color 0.2s, opacity 0.2s;
         }
 
-        .steps-table-row:last-child {
+        .steps-row-wrapper:last-child {
             border-bottom: none;
         }
 
-        .steps-table-row.dragging {
+        .steps-row-wrapper.dragging {
             opacity: 0.5;
             background-color: var(--vscode-list-hoverBackground);
         }
 
-        .steps-table-row.drag-over {
+        .steps-row-wrapper.drag-over {
             background-color: var(--vscode-list-activeSelectionBackground);
             border-top: 2px solid var(--vscode-textLink-foreground);
+        }
+
+        .steps-table-row {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 120px 1fr 1fr 100px;
+            background-color: transparent;
         }
 
         .steps-table-cell {
@@ -328,24 +342,28 @@ export class MarkdownTestCaseRenderer {
 
         .steps-table-cell.step-cell {
             text-align: center;
-            justify-content: flex-start;
+            justify-content: center;
             align-items: center;
+            padding: 8px;
+            cursor: pointer;
+            position: relative;
             flex-direction: column;
             gap: 4px;
-            padding: 8px;
-            position: relative;
         }
 
         .step-cell-number {
             font-weight: 600;
-            margin-bottom: 4px;
         }
 
         .step-cell-actions {
             display: flex;
             flex-direction: column;
+            align-items: center;
             gap: 2px;
-            width: 100%;
+        }
+
+        .steps-row-actions {
+            display: none;
         }
 
         .step-cell-drag-handle {
@@ -355,8 +373,8 @@ export class MarkdownTestCaseRenderer {
             font-size: 14px;
             line-height: 1;
             opacity: 0.6;
-            padding: 2px;
-            margin: 2px 0;
+            padding: 4px;
+            transition: opacity 0.2s;
         }
 
         .step-cell-drag-handle:hover {
@@ -396,6 +414,42 @@ export class MarkdownTestCaseRenderer {
 
         .step-cell-btn.delete-btn:hover {
             background-color: var(--vscode-inputValidation-errorBackground);
+        }
+
+        .step-context-menu {
+            position: absolute;
+            background-color: var(--vscode-menu-background);
+            border: 1px solid var(--vscode-menu-border);
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            min-width: 150px;
+            padding: 4px 0;
+            display: none;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+        }
+
+        .step-context-menu.visible {
+            display: block;
+        }
+
+        .step-context-menu-item {
+            padding: 6px 12px;
+            cursor: pointer;
+            color: var(--vscode-menu-foreground);
+            font-size: 13px;
+            transition: background-color 0.1s;
+        }
+
+        .step-context-menu-item:hover {
+            background-color: var(--vscode-menu-selectionBackground);
+            color: var(--vscode-menu-selectionForeground);
+        }
+
+        .step-context-menu-item.delete {
+            color: var(--vscode-errorForeground);
         }
 
         .steps-table-cell.action-cell,
@@ -893,7 +947,8 @@ export class MarkdownTestCaseRenderer {
                 
                 // Update row height based on the tallest cell
                 const row = textarea.closest('.steps-table-row');
-                if (row) {
+                const rowWrapper = textarea.closest('.steps-row-wrapper');
+                if (row && rowWrapper) {
                     // Force reflow to get accurate cell heights
                     void row.offsetHeight;
                     
@@ -905,9 +960,9 @@ export class MarkdownTestCaseRenderer {
                             maxHeight = cellHeight;
                         }
                     });
-                    // Ensure row height matches the tallest cell
+                    // Ensure row wrapper height matches the tallest cell
                     if (maxHeight > 0) {
-                        row.style.minHeight = maxHeight + 'px';
+                        rowWrapper.style.minHeight = maxHeight + 'px';
                     }
                 }
             }
@@ -937,8 +992,20 @@ export class MarkdownTestCaseRenderer {
                             autoResizeTextarea(textarea);
                         });
                     });
+                    // Force layout recalculation to fix height issues
+                    void document.body.offsetHeight;
                 }, 50);
             });
+            
+            // Additional resize after a longer delay to ensure all content is rendered
+            setTimeout(() => {
+                document.querySelectorAll('.step-cell-editable').forEach(textarea => {
+                    textarea.style.height = 'auto';
+                    autoResizeTextarea(textarea);
+                });
+                // Force layout recalculation
+                void document.body.offsetHeight;
+            }, 200);
 
             // Handle comments (Комментарии)
             const commentsAddToggle = document.getElementById('comments-add-toggle');
@@ -1118,23 +1185,26 @@ export class MarkdownTestCaseRenderer {
             let dragStartElement = null;
 
             if (stepsTableBody) {
-                // Only allow drag from drag handle (not from buttons or textarea)
+                // Only allow drag from drag handle (not from buttons, textarea, or context menu)
                 stepsTableBody.addEventListener('mousedown', function(e) {
                     const target = e.target;
                     
-                    // Don't allow drag from buttons or textarea
+                    // Don't allow drag from context menu, textarea, or buttons
                     if (target.tagName === 'TEXTAREA' || 
                         target.closest('textarea') ||
-                        target.classList.contains('step-cell-btn')) {
+                        target.closest('.step-context-menu') ||
+                        target.closest('.step-context-menu-item') ||
+                        target.classList.contains('step-cell-btn') ||
+                        target.closest('.step-cell-btn')) {
                         dragStartElement = null;
                         return;
                     }
                     
                     // Only allow drag from drag handle
                     if (target.classList.contains('step-cell-drag-handle')) {
-                        const row = target.closest('.steps-table-row');
-                        if (row) {
-                            dragStartElement = row;
+                        const rowWrapper = target.closest('.steps-row-wrapper');
+                        if (rowWrapper) {
+                            dragStartElement = rowWrapper;
                         }
                     } else {
                         dragStartElement = null;
@@ -1145,24 +1215,27 @@ export class MarkdownTestCaseRenderer {
                     // Only start drag if we clicked on drag handle
                     const target = e.target;
                     
-                    // Don't start drag if clicking on buttons or textarea
+                    // Don't start drag if clicking on context menu, textarea, or buttons
                     if (target.tagName === 'TEXTAREA' || 
                         target.closest('textarea') ||
-                        target.classList.contains('step-cell-btn')) {
+                        target.closest('.step-context-menu') ||
+                        target.closest('.step-context-menu-item') ||
+                        target.classList.contains('step-cell-btn') ||
+                        target.closest('.step-cell-btn')) {
                         e.preventDefault();
                         return;
                     }
                     
                     // Only allow drag from drag handle
-                    let row = null;
+                    let rowWrapper = null;
                     if (target.classList.contains('step-cell-drag-handle')) {
-                        row = target.closest('.steps-table-row');
+                        rowWrapper = target.closest('.steps-row-wrapper');
                     } else if (dragStartElement) {
-                        row = dragStartElement;
+                        rowWrapper = dragStartElement;
                     }
                     
-                    if (row) {
-                        draggedElement = row;
+                    if (rowWrapper) {
+                        draggedElement = rowWrapper;
                         draggedIndex = parseInt(draggedElement.getAttribute('data-step-index') || '0');
                         draggedElement.classList.add('dragging');
                         e.dataTransfer.effectAllowed = 'move';
@@ -1176,7 +1249,7 @@ export class MarkdownTestCaseRenderer {
                     if (draggedElement) {
                         draggedElement.classList.remove('dragging');
                         // Remove drag-over from all rows
-                        document.querySelectorAll('.steps-table-row').forEach(row => {
+                        document.querySelectorAll('.steps-row-wrapper').forEach(row => {
                             row.classList.remove('drag-over');
                         });
                         draggedElement = null;
@@ -1189,20 +1262,20 @@ export class MarkdownTestCaseRenderer {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
 
-                    const targetRow = e.target.closest('.steps-table-row');
-                    if (targetRow && targetRow !== draggedElement) {
+                    const targetRowWrapper = e.target.closest('.steps-row-wrapper');
+                    if (targetRowWrapper && targetRowWrapper !== draggedElement) {
                         // Remove drag-over from all rows
-                        document.querySelectorAll('.steps-table-row').forEach(row => {
+                        document.querySelectorAll('.steps-row-wrapper').forEach(row => {
                             row.classList.remove('drag-over');
                         });
-                        targetRow.classList.add('drag-over');
+                        targetRowWrapper.classList.add('drag-over');
                     }
                 });
 
                 stepsTableBody.addEventListener('dragleave', function(e) {
-                    const targetRow = e.target.closest('.steps-table-row');
-                    if (targetRow) {
-                        targetRow.classList.remove('drag-over');
+                    const targetRowWrapper = e.target.closest('.steps-row-wrapper');
+                    if (targetRowWrapper) {
+                        targetRowWrapper.classList.remove('drag-over');
                     }
                 });
 
@@ -1211,15 +1284,15 @@ export class MarkdownTestCaseRenderer {
                     
                     if (!draggedElement) return;
 
-                    const targetRow = e.target.closest('.steps-table-row');
-                    if (!targetRow || targetRow === draggedElement) {
+                    const targetRowWrapper = e.target.closest('.steps-row-wrapper');
+                    if (!targetRowWrapper || targetRowWrapper === draggedElement) {
                         return;
                     }
 
-                    const targetIndex = parseInt(targetRow.getAttribute('data-step-index') || '0');
+                    const targetIndex = parseInt(targetRowWrapper.getAttribute('data-step-index') || '0');
                     
                     // Remove drag-over from all rows
-                    document.querySelectorAll('.steps-table-row').forEach(row => {
+                    document.querySelectorAll('.steps-row-wrapper').forEach(row => {
                         row.classList.remove('drag-over');
                     });
 
@@ -1257,7 +1330,70 @@ export class MarkdownTestCaseRenderer {
                 });
             });
 
-            // Prevent drag when clicking buttons
+            // Handle context menu for step cells (right click or click on cell)
+            document.querySelectorAll('.steps-table-cell.step-cell').forEach(cell => {
+                const stepIndex = parseInt(cell.getAttribute('data-step-index') || '0');
+                const contextMenu = cell.querySelector('.step-context-menu');
+                
+                if (!contextMenu) return;
+                
+                // Handle click on step cell (not on drag handle or buttons)
+                cell.addEventListener('click', function(e) {
+                    // Don't show menu if clicked on drag handle or buttons
+                    if (e.target.classList.contains('step-cell-drag-handle') || 
+                        e.target.closest('.step-cell-drag-handle') ||
+                        e.target.classList.contains('step-cell-btn') ||
+                        e.target.closest('.step-cell-btn')) {
+                        return;
+                    }
+                    
+                    e.stopPropagation();
+                    
+                    // Close all other menus
+                    document.querySelectorAll('.step-context-menu').forEach(menu => {
+                        if (menu !== contextMenu) {
+                            menu.classList.remove('visible');
+                        }
+                    });
+                    
+                    // Toggle current menu
+                    contextMenu.classList.toggle('visible');
+                });
+                
+                // Handle menu items
+                contextMenu.querySelectorAll('.step-context-menu-item').forEach(item => {
+                    item.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const action = this.getAttribute('data-action');
+                        
+                        if (action === 'add') {
+                            vscode.postMessage({
+                                command: 'addStep',
+                                afterIndex: stepIndex
+                            });
+                        } else if (action === 'delete') {
+                            vscode.postMessage({
+                                command: 'deleteStep',
+                                stepIndex: stepIndex
+                            });
+                        }
+                        
+                        contextMenu.classList.remove('visible');
+                    });
+                });
+            });
+
+            // Close menu when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.step-context-menu') && 
+                    !e.target.closest('.steps-table-cell.step-cell')) {
+                    document.querySelectorAll('.step-context-menu').forEach(menu => {
+                        menu.classList.remove('visible');
+                    });
+                }
+            });
+
+            // Prevent drag when clicking on buttons or drag handle
             document.querySelectorAll('.step-cell-btn, .step-cell-drag-handle').forEach(element => {
                 element.addEventListener('mousedown', function(e) {
                     e.stopPropagation();
@@ -1267,9 +1403,9 @@ export class MarkdownTestCaseRenderer {
             // Only allow drag from drag handle
             document.querySelectorAll('.step-cell-drag-handle').forEach(handle => {
                 handle.addEventListener('mousedown', function(e) {
-                    const row = this.closest('.steps-table-row');
-                    if (row) {
-                        dragStartElement = row;
+                    const rowWrapper = this.closest('.steps-row-wrapper');
+                    if (rowWrapper) {
+                        dragStartElement = rowWrapper;
                     }
                 });
             });
@@ -1572,6 +1708,48 @@ export class MarkdownTestCaseRenderer {
                     }
                 });
             }
+            
+            // Fix height calculation on initial load
+            // This ensures proper height calculation when panel is first opened
+            function fixInitialHeight() {
+                // Force layout recalculation
+                void document.body.offsetHeight;
+                
+                // Recalculate all textarea heights
+                document.querySelectorAll('.step-cell-editable').forEach(textarea => {
+                    textarea.style.height = 'auto';
+                    const scrollHeight = textarea.scrollHeight;
+                    textarea.style.height = Math.max(20, scrollHeight) + 'px';
+                });
+                
+                // Update row wrapper heights
+                document.querySelectorAll('.steps-row-wrapper').forEach(wrapper => {
+                    const row = wrapper.querySelector('.steps-table-row');
+                    if (row) {
+                        const cells = row.querySelectorAll('.steps-table-cell');
+                        let maxHeight = 0;
+                        cells.forEach(cell => {
+                            const cellHeight = cell.offsetHeight;
+                            if (cellHeight > maxHeight) {
+                                maxHeight = cellHeight;
+                            }
+                        });
+                        if (maxHeight > 0) {
+                            wrapper.style.minHeight = maxHeight + 'px';
+                        }
+                    }
+                });
+                
+                // Force final layout recalculation
+                void document.body.offsetHeight;
+            }
+            
+            // Run height fix multiple times to ensure proper calculation
+            requestAnimationFrame(() => {
+                setTimeout(fixInitialHeight, 0);
+                setTimeout(fixInitialHeight, 50);
+                setTimeout(fixInitialHeight, 200);
+            });
         })();
     </script>
 </body>
@@ -1796,8 +1974,8 @@ export class MarkdownTestCaseRenderer {
         }
 
         const gridColumns = showStatusColumn 
-            ? '120px 1fr 1fr 100px 100px' 
-            : '120px 1fr 1fr 100px';
+            ? '120px 1fr 1fr 100px' 
+            : '120px 1fr 1fr';
         const gridColumnsStyle = `grid-template-columns: ${gridColumns};`;
 
         const rows = steps.map((step, index) => {
@@ -1813,40 +1991,38 @@ export class MarkdownTestCaseRenderer {
             ` : '';
 
             return `
-            <div class="steps-table-row" draggable="true" data-step-index="${index}" style="${gridColumnsStyle}">
-                <div class="steps-table-cell step-cell">
-                    <div class="step-cell-number">${step.stepNumber || index + 1}</div>
-                    <div class="step-cell-actions">
-                        <div class="step-cell-drag-handle" title="Перетащить шаг">⋮⋮</div>
-                        <button class="step-cell-btn add-btn" data-step-index="${index}" data-action="add" title="Добавить шаг после этого">+</button>
-                        <button class="step-cell-btn delete-btn" data-step-index="${index}" data-action="delete" title="Удалить шаг">×</button>
+            <div class="steps-row-wrapper" draggable="true" data-step-index="${index}">
+                <div class="steps-table-row" style="${gridColumnsStyle}">
+                    <div class="steps-table-cell step-cell" data-step-index="${index}">
+                        <div class="step-cell-number">${step.stepNumber || index + 1}</div>
+                        <div class="step-cell-actions">
+                            <div class="step-cell-drag-handle" title="Перетащить шаг">⋮⋮</div>
+                            <button class="step-cell-btn add-btn" data-step-index="${index}" data-action="add" title="Добавить шаг после этого">+</button>
+                            <button class="step-cell-btn delete-btn" data-step-index="${index}" data-action="delete" title="Удалить шаг">×</button>
+                        </div>
+                        <div class="step-context-menu" data-step-index="${index}">
+                            <div class="step-context-menu-item add" data-action="add">Добавить шаг</div>
+                            <div class="step-context-menu-item delete" data-action="delete">Удалить шаг</div>
+                        </div>
                     </div>
+                    <div class="steps-table-cell action-cell">
+                        <textarea 
+                            class="step-cell-editable" 
+                            data-step-index="${index}"
+                            data-step-field="action"
+                            rows="1"
+                        >${this.escapeHtml(step.action || '')}</textarea>
+                    </div>
+                    <div class="steps-table-cell expected-cell">
+                        <textarea 
+                            class="step-cell-editable" 
+                            data-step-index="${index}"
+                            data-step-field="expectedResult"
+                            rows="1"
+                        >${this.escapeHtml(step.expectedResult || '')}</textarea>
+                    </div>
+                    ${statusCell}
                 </div>
-                <div class="steps-table-cell action-cell">
-                    <textarea 
-                        class="step-cell-editable" 
-                        data-step-index="${index}"
-                        data-step-field="action"
-                        rows="1"
-                    >${this.escapeHtml(step.action || '')}</textarea>
-                </div>
-                <div class="steps-table-cell expected-cell">
-                    <textarea 
-                        class="step-cell-editable" 
-                        data-step-index="${index}"
-                        data-step-field="expectedResult"
-                        rows="1"
-                    >${this.escapeHtml(step.expectedResult || '')}</textarea>
-                </div>
-                <div class="steps-table-cell attachments-cell">
-                    <textarea 
-                        class="step-cell-editable" 
-                        data-step-index="${index}"
-                        data-step-field="attachments"
-                        rows="1"
-                    >${this.escapeHtml(step.attachments || '')}</textarea>
-                </div>
-                ${statusCell}
             </div>
         `;
         }).join('');
@@ -1856,16 +2032,17 @@ export class MarkdownTestCaseRenderer {
             : '';
 
         return `
-            <div class="steps-table">
-                <div class="steps-table-header" style="${gridColumnsStyle}">
-                    <div class="steps-table-header-cell step-cell">Шаг</div>
-                    <div class="steps-table-header-cell action-cell">Действие</div>
-                    <div class="steps-table-header-cell expected-cell">ОР</div>
-                    <div class="steps-table-header-cell attachments-cell">Вложения</div>
-                    ${statusHeader}
-                </div>
-                <div class="steps-table-body" id="steps-table-body">
-                    ${rows}
+            <div class="steps-table-wrapper">
+                <div class="steps-table">
+                    <div class="steps-table-header" style="${gridColumnsStyle}">
+                        <div class="steps-table-header-cell step-cell">Шаг</div>
+                        <div class="steps-table-header-cell action-cell">Действие</div>
+                        <div class="steps-table-header-cell expected-cell">ОР</div>
+                        ${statusHeader}
+                    </div>
+                    <div class="steps-table-body" id="steps-table-body">
+                        ${rows}
+                    </div>
                 </div>
             </div>
         `;

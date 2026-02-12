@@ -184,7 +184,6 @@ export class MarkdownTestCaseParser {
             const stepIndex = headers.findIndex(h => h.toLowerCase().includes('шаг'));
             const actionIndex = headers.findIndex(h => h.toLowerCase().includes('действие'));
             const expectedIndex = headers.findIndex(h => h.toLowerCase().includes('ор') || h.toLowerCase().includes('ожидаемый'));
-            const attachmentsIndex = headers.findIndex(h => h.toLowerCase().includes('вложения'));
             const statusIndex = headers.findIndex(h => h.toLowerCase().includes('статус'));
 
             for (const row of rows) {
@@ -192,7 +191,6 @@ export class MarkdownTestCaseParser {
                     stepNumber: stepIndex >= 0 && row[stepIndex] ? parseInt(row[stepIndex]) || 0 : 0,
                     action: actionIndex >= 0 && row[actionIndex] ? this._normalizeStepCell(row[actionIndex]) : '',
                     expectedResult: expectedIndex >= 0 && row[expectedIndex] ? this._normalizeStepCell(row[expectedIndex]) : '',
-                    attachments: attachmentsIndex >= 0 && row[attachmentsIndex] ? this._normalizeStepCell(row[attachmentsIndex]) : '',
                     status: statusIndex >= 0 && row[statusIndex] ? this._normalizeStepCell(row[statusIndex]) : ''
                 };
                 
@@ -328,15 +326,14 @@ export class MarkdownTestCaseParser {
 
         // Шаги тестирования
         lines.push('## Шаги тестирования');
-        lines.push('| Шаг |  Действие  |           ОР          | Вложения |Статус |');
-        lines.push('|-----|------------|-----------------------|----------|-------|');
+        lines.push('| Шаг |  Действие  |           ОР          |Статус |');
+        lines.push('|-----|------------|-----------------------|-------|');
         if (testCase.steps && testCase.steps.length > 0) {
             testCase.steps.forEach(step => {
                 const action = this._serializeStepCell(step.action);
                 const expected = this._serializeStepCell(step.expectedResult);
-                const attachments = this._serializeStepCell(step.attachments);
                 const status = this._serializeStepCell(step.status);
-                lines.push(`| ${step.stepNumber} | ${action} | ${expected} | ${attachments} |${status} |`);
+                lines.push(`| ${step.stepNumber} | ${action} | ${expected} |${status} |`);
             });
         }
         lines.push('');
