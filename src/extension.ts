@@ -274,7 +274,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('testCaseViewer.showFilters', () => {
-            showQuickPickFilters(treeViewProvider, treeView);
+            showFiltersPanel(context, treeViewProvider, treeView);
         })
     );
 
@@ -654,7 +654,7 @@ async function showQuickPickFilters(treeProvider: TestCaseTreeViewProvider, tree
 }
 
 // Старая функция (оставляем для обратной совместимости, но не используем)
-async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: TestCaseTreeViewProvider) {
+async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: TestCaseTreeViewProvider, treeView: vscode.TreeView<TestCaseTreeItem>) {
     const panel = vscode.window.createWebviewPanel(
         'testCaseFilters',
         'Фильтры дерева объектов',
@@ -665,10 +665,12 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
         }
     );
 
+    // Получаем текущие фильтры
+    const currentFilters = treeProvider.getFilters();
+
     // Получаем уникальные значения для фильтров
     const authors = await treeProvider.getUniqueValues('author');
     const owners = await treeProvider.getUniqueValues('owner');
-    const reviewers = await treeProvider.getUniqueValues('reviewer');
     const testTypes = await treeProvider.getUniqueValues('testType');
     const statuses = await treeProvider.getUniqueValues('status');
     const epics = await treeProvider.getUniqueValues('epic');
@@ -736,63 +738,56 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
         <label class="filter-label">Автор:</label>
         <select class="filter-select" id="filter-author">
             <option value="">Все</option>
-            ${authors.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('')}
+            ${authors.map(a => `<option value="${escapeHtml(a)}" ${currentFilters.author === a ? 'selected' : ''}>${escapeHtml(a)}</option>`).join('')}
         </select>
     </div>
     <div class="filter-group">
-        <label class="filter-label">Владелец:</label>
+        <label class="filter-label">Исполнитель:</label>
         <select class="filter-select" id="filter-owner">
             <option value="">Все</option>
-            ${owners.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
-        </select>
-    </div>
-    <div class="filter-group">
-        <label class="filter-label">Ревьювер:</label>
-        <select class="filter-select" id="filter-reviewer">
-            <option value="">Все</option>
-            ${reviewers.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}
+            ${owners.map(o => `<option value="${escapeHtml(o)}" ${currentFilters.owner === o ? 'selected' : ''}>${escapeHtml(o)}</option>`).join('')}
         </select>
     </div>
     <div class="filter-group">
         <label class="filter-label">Тип теста:</label>
         <select class="filter-select" id="filter-test-type">
             <option value="">Все</option>
-            ${testTypes.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
+            ${testTypes.map(t => `<option value="${escapeHtml(t)}" ${currentFilters.testType === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}
         </select>
     </div>
     <div class="filter-group">
         <label class="filter-label">Статус:</label>
         <select class="filter-select" id="filter-status">
             <option value="">Все</option>
-            ${statuses.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}
+            ${statuses.map(s => `<option value="${escapeHtml(s)}" ${currentFilters.status === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
         </select>
     </div>
     <div class="filter-group">
         <label class="filter-label">Эпик:</label>
         <select class="filter-select" id="filter-epic">
             <option value="">Все</option>
-            ${epics.map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('')}
+            ${epics.map(e => `<option value="${escapeHtml(e)}" ${currentFilters.epic === e ? 'selected' : ''}>${escapeHtml(e)}</option>`).join('')}
         </select>
     </div>
     <div class="filter-group">
         <label class="filter-label">Фича:</label>
         <select class="filter-select" id="filter-feature">
             <option value="">Все</option>
-            ${features.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('')}
+            ${features.map(f => `<option value="${escapeHtml(f)}" ${currentFilters.feature === f ? 'selected' : ''}>${escapeHtml(f)}</option>`).join('')}
         </select>
     </div>
     <div class="filter-group">
         <label class="filter-label">Стори:</label>
         <select class="filter-select" id="filter-story">
             <option value="">Все</option>
-            ${stories.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}
+            ${stories.map(s => `<option value="${escapeHtml(s)}" ${currentFilters.story === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
         </select>
     </div>
     <div class="filter-group">
         <label class="filter-label">Теги:</label>
         <select class="filter-select" id="filter-tags">
             <option value="">Все</option>
-            ${tags.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
+            ${tags.map(t => `<option value="${escapeHtml(t)}" ${currentFilters.tags === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}
         </select>
     </div>
     <button class="filter-reset-btn" id="filter-reset-btn">Сбросить фильтры</button>
@@ -801,7 +796,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
         
         const authorSelect = document.getElementById('filter-author');
         const ownerSelect = document.getElementById('filter-owner');
-        const reviewerSelect = document.getElementById('filter-reviewer');
         const testTypeSelect = document.getElementById('filter-test-type');
         const statusSelect = document.getElementById('filter-status');
         const epicSelect = document.getElementById('filter-epic');
@@ -814,7 +808,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
             const filters = {
                 author: authorSelect.value || undefined,
                 owner: ownerSelect.value || undefined,
-                reviewer: reviewerSelect.value || undefined,
                 testType: testTypeSelect.value || undefined,
                 status: statusSelect.value || undefined,
                 epic: epicSelect.value || undefined,
@@ -831,7 +824,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
         
         authorSelect.addEventListener('change', applyFilters);
         ownerSelect.addEventListener('change', applyFilters);
-        reviewerSelect.addEventListener('change', applyFilters);
         testTypeSelect.addEventListener('change', applyFilters);
         statusSelect.addEventListener('change', applyFilters);
         epicSelect.addEventListener('change', applyFilters);
@@ -842,7 +834,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
         resetBtn.addEventListener('click', () => {
             authorSelect.value = '';
             ownerSelect.value = '';
-            reviewerSelect.value = '';
             testTypeSelect.value = '';
             statusSelect.value = '';
             epicSelect.value = '';
@@ -860,6 +851,8 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
     panel.webview.onDidReceiveMessage(async (message) => {
         if (message.command === 'applyFilters') {
             treeProvider.setFilters(message.filters);
+            updateTreeViewTitle(treeView, treeProvider);
+            await vscode.commands.executeCommand('testCaseViewer.refreshTree');
         }
     });
 }
