@@ -839,6 +839,34 @@ export class TestCaseRunnerProvider {
             transition: stroke 0.2s;
         }
         
+        .reset-statuses-btn {
+            padding: 8px 12px;
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 40px;
+            transition: background-color 0.2s;
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 500;
+            gap: 6px;
+        }
+        
+        .reset-statuses-btn:hover {
+            background-color: var(--hover-bg);
+        }
+        
+        .reset-statuses-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            transition: stroke 0.2s;
+        }
+        
         .filter-section {
             padding: 6px 10px;
             border-bottom: 1px solid var(--border-color);
@@ -1664,9 +1692,21 @@ export class TestCaseRunnerProvider {
         <div style="display: flex; align-items: center; gap: 12px;">
             <div class="runner-branch" id="branch-info">Ветка: ${this.escapeHtml(branch)}</div>
         </div>
-        <button class="theme-toggle" id="theme-toggle" aria-label="Activate dark mode">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-        </button>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <button class="reset-statuses-btn" id="reset-statuses-btn" title="Сбросить статусы (failed статусы сохраняются)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 6h18"></path>
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                    <line x1="10" y1="11" x2="10" y2="17"></line>
+                    <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+                <span>Сбросить статусы</span>
+            </button>
+            <button class="theme-toggle" id="theme-toggle" aria-label="Activate dark mode">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </button>
+        </div>
     </div>
     <div class="filter-section">
         <div class="filter-group">
@@ -1869,6 +1909,73 @@ export class TestCaseRunnerProvider {
                 localStorage.setItem('testCaseRunnerTheme', isDark ? 'dark' : 'light');
                 updateThemeIcon(isDark);
             });
+            
+            // Обработчик кнопки сброса статусов
+            const resetStatusesBtn = document.getElementById('reset-statuses-btn');
+            if (resetStatusesBtn) {
+                resetStatusesBtn.addEventListener('click', function() {
+                    if (!confirm('Вы уверены, что хотите сбросить все статусы?\\n\\nFailed статусы с причинами (bugLink) будут сохранены.\\nВсе остальные статусы (passed, skipped) и причины пропуска (skipReason) будут очищены.')) {
+                        return;
+                    }
+                    
+                    let updatedCount = 0;
+                    let stepsCount = 0;
+                    
+                    // Проходим по всем тест-кейсам
+                    Object.keys(testCasesData).forEach(relativePath => {
+                        const testCase = testCasesData[relativePath];
+                        if (testCase && testCase.steps && Array.isArray(testCase.steps)) {
+                            let hasChanges = false;
+                            testCase.steps.forEach(step => {
+                                const hasBugLink = step.bugLink && step.bugLink.trim() !== '';
+                                const oldStatus = step.status || '';
+                                const oldSkipReason = step.skipReason || '';
+                                
+                                // Если статус failed и есть bugLink - сохраняем их
+                                if (oldStatus === 'failed' && hasBugLink) {
+                                    // Сохраняем failed статус и bugLink, но очищаем skipReason если есть
+                                    if (oldSkipReason) {
+                                        step.skipReason = '';
+                                        hasChanges = true;
+                                    }
+                                } else {
+                                    // Для всех остальных случаев - сбрасываем статус и очищаем skipReason
+                                    if (oldStatus !== '' || oldSkipReason !== '') {
+                                        step.status = '';
+                                        step.skipReason = '';
+                                        hasChanges = true;
+                                        stepsCount++;
+                                    }
+                                }
+                            });
+                            
+                            if (hasChanges) {
+                                modifiedFiles.add(relativePath);
+                                updatedCount++;
+                                
+                                // Если этот тест-кейс сейчас открыт, обновляем его отображение
+                                if (currentFilePath === relativePath) {
+                                    loadTestCaseContent(testCase, relativePath);
+                                }
+                            }
+                        }
+                    });
+                    
+                    // Обновляем статистику
+                    updateStats();
+                    // Обновляем индикаторы статусов в дереве
+                    updateTreeStatusIndicators();
+                    
+                    // Включаем кнопки сохранения
+                    const saveSelectedBtn = document.getElementById('save-selected-btn');
+                    const saveAllBtn = document.getElementById('save-all-btn');
+                    if (saveSelectedBtn) saveSelectedBtn.disabled = false;
+                    if (saveAllBtn) saveAllBtn.disabled = false;
+                    
+                    // Показываем уведомление
+                    showNotification(\`Сброшено статусов в тест-кейсах: \${updatedCount}, шагов: \${stepsCount}\`, 'success');
+                });
+            }
             
             // Инициализация фильтров
             const authors = new Set();
@@ -3980,16 +4087,10 @@ export class TestCaseRunnerProvider {
             progress.report({ increment: 50, message: 'Сканирование тест-кейсов...' });
             const testCases = await this.scanTestCases();
             
-            // 3. Генерация HTML с адресом сервера (внутри происходит сброс состояний)
-            progress.report({ increment: 70, message: 'Генерация HTML и сброс состояний...' });
-            const result = this.generateStandaloneHtmlWithReset(testCases, branch, serverPort);
-            const html = result.html;
-            
-            // 3.1. Автосохранение всех измененных файлов
-            if (result.filesToSave.length > 0) {
-                progress.report({ increment: 85, message: `Автосохранение ${result.filesToSave.length} файлов...` });
-                await this.autoSaveFiles(result.filesToSave, testCases, serverPort);
-            }
+            // 3. Генерация HTML с адресом сервера (без сброса состояний)
+            progress.report({ increment: 70, message: 'Генерация HTML...' });
+            const htmlResult = this.generateStandaloneHtml(testCases, branch, serverPort, false);
+            const html = typeof htmlResult === 'string' ? htmlResult : htmlResult.html;
             
             // 4. Создание структуры папок и сохранение файла
             const releasesDir = path.join(workspacePath, '_releases');
