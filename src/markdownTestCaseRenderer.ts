@@ -42,6 +42,8 @@ export class MarkdownTestCaseRenderer {
             margin: 0;
             height: auto;
             overflow: visible;
+            transition: transform 0.1s ease;
+            transform-origin: top left;
         }
         
         .container {
@@ -2269,6 +2271,32 @@ export class MarkdownTestCaseRenderer {
                 setTimeout(fixInitialHeight, 50);
                 setTimeout(fixInitialHeight, 200);
             });
+
+            // Zoom functionality with Ctrl/Cmd + Mouse Wheel
+            let zoomLevel = 1;
+            const minZoom = 0.5;
+            const maxZoom = 3.0;
+            const zoomStep = 0.1;
+
+            // Detect if we're on Mac (Cmd key) or Windows/Linux (Ctrl key)
+            const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+            const zoomKey = isMac ? 'metaKey' : 'ctrlKey';
+
+            document.addEventListener('wheel', function(e) {
+                // Check if Ctrl (Windows/Linux) or Cmd (Mac) is pressed
+                if (e[zoomKey]) {
+                    e.preventDefault();
+                    
+                    // Determine zoom direction
+                    const delta = e.deltaY > 0 ? -zoomStep : zoomStep;
+                    const newZoom = Math.max(minZoom, Math.min(maxZoom, zoomLevel + delta));
+                    
+                    if (newZoom !== zoomLevel) {
+                        zoomLevel = newZoom;
+                        document.body.style.transform = 'scale(' + zoomLevel + ')';
+                    }
+                }
+            }, { passive: false });
         })();
     </script>
 </body>
