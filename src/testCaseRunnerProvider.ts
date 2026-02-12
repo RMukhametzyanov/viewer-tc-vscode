@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { SettingsProvider } from './settingsProvider';
+import { MarkdownTestCaseParser, MarkdownTestCase } from './markdownTestCaseParser';
 
 interface TestCase {
     id: string;
@@ -230,13 +231,50 @@ export class TestCaseRunnerProvider {
                         return;
                     }
 
-                    // Обновляем updatedAt
-                    if (content && typeof content === 'object') {
-                        content.updatedAt = Date.now();
+                    // Определяем формат файла по расширению
+                    const isMarkdown = fullPath.toLowerCase().endsWith('.md');
+                    
+                    if (isMarkdown) {
+                        // Преобразуем TestCase в MarkdownTestCase и сохраняем как MD
+                        const mdCase: MarkdownTestCase = {
+                            title: content.name || '',
+                            metadata: {
+                                id: content.id || content.testCaseId || '',
+                                author: content.author || '',
+                                owner: content.owner || '',
+                                status: content.status || '',
+                                testType: content.testType || ''
+                            },
+                            links: content.issueLinks ? content.issueLinks.split('\n').filter((l: string) => l.trim()) : [],
+                            attachedDocuments: [],
+                            epicFeatureStory: {
+                                epic: content.epic || '',
+                                feature: content.feature || '',
+                                story: content.story || ''
+                            },
+                            tags: content.tags ? content.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t) : [],
+                            description: content.description || '',
+                            preconditions: content.preconditions || '',
+                            steps: content.steps ? content.steps.map((step: any) => ({
+                                stepNumber: parseInt(step.id) || 0,
+                                action: step.description || '',
+                                expectedResult: step.expectedResult || '',
+                                status: step.status || '',
+                                reason: step.status === 'failed' ? (step.bugLink || '') : 
+                                        step.status === 'skipped' ? (step.skipReason || '') : undefined
+                            })) : [],
+                            comments: []
+                        };
+                        
+                        const markdownContent = MarkdownTestCaseParser.serialize(mdCase);
+                        fs.writeFileSync(fullPath, markdownContent, 'utf8');
+                    } else {
+                        // Для JSON файлов (обратная совместимость)
+                        if (content && typeof content === 'object') {
+                            content.updatedAt = Date.now();
+                        }
+                        fs.writeFileSync(fullPath, JSON.stringify(content, null, 4), 'utf8');
                     }
-
-                    // Сохраняем файл
-                    fs.writeFileSync(fullPath, JSON.stringify(content, null, 4), 'utf8');
 
                     // Обновляем данные в дереве
                     this._testCases.forEach(node => {
@@ -317,13 +355,58 @@ export class TestCaseRunnerProvider {
     /**
      * Сканировать репозиторий и построить дерево тест-кейсов
      */
+    /**
+     * Преобразует MarkdownTestCase в TestCase для совместимости
+     */
+    private convertMarkdownToTestCase(mdCase: MarkdownTestCase, filePath: string): TestCase {
+        const testCase: TestCase = {
+            id: mdCase.metadata.id || '',
+            name: mdCase.title || path.basename(filePath, '.md'),
+            description: mdCase.description || '',
+            preconditions: mdCase.preconditions || '',
+            expectedResult: '',
+            epic: mdCase.epicFeatureStory.epic || '',
+            feature: mdCase.epicFeatureStory.feature || '',
+            story: mdCase.epicFeatureStory.story || '',
+            component: '',
+            testLayer: '',
+            severity: '',
+            priority: '',
+            environment: '',
+            browser: '',
+            owner: mdCase.metadata.owner || '',
+            author: mdCase.metadata.author || '',
+            reviewer: '',
+            testCaseId: mdCase.metadata.id || '',
+            issueLinks: mdCase.links?.join('\n') || '',
+            testCaseLinks: '',
+            tags: mdCase.tags?.join(', ') || '',
+            status: mdCase.metadata.status || '',
+            testType: mdCase.metadata.testType || '',
+            steps: mdCase.steps.map((step, index) => ({
+                id: String(step.stepNumber || index + 1),
+                name: `Шаг ${step.stepNumber || index + 1}`,
+                description: step.action || '',
+                expectedResult: step.expectedResult || '',
+                status: step.status || '',
+                bugLink: step.status?.toLowerCase() === 'failed' ? (step.reason || '') : '',
+                skipReason: step.status?.toLowerCase() === 'skipped' ? (step.reason || '') : '',
+                attachments: step.attachments || ''
+            })),
+            createdAt: undefined,
+            updatedAt: undefined,
+            notes: undefined
+        };
+        return testCase;
+    }
+
     private async scanTestCases(): Promise<Map<string, TestCaseNode>> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders || workspaceFolders.length === 0) {
             return new Map();
         }
 
-        const files = await vscode.workspace.findFiles('**/*.json');
+        const files = await vscode.workspace.findFiles('**/*.md');
         const tree = new Map<string, TestCaseNode>();
         const rootNode: TestCaseNode = {
             type: 'folder',
@@ -336,10 +419,13 @@ export class TestCaseRunnerProvider {
         for (const file of files) {
             try {
                 const content = await vscode.workspace.fs.readFile(file);
-                const json = JSON.parse(content.toString());
+                const contentStr = content.toString();
+                
+                // Парсим markdown файл
+                const mdCase = MarkdownTestCaseParser.parse(contentStr);
 
-                // Проверяем, что это тест-кейс
-                if (json.id && json.name && Array.isArray(json.steps)) {
+                // Проверяем, что это тест-кейс (есть заголовок и шаги)
+                if (mdCase.title && mdCase.steps && mdCase.steps.length > 0) {
                     const relativePath = vscode.workspace.asRelativePath(file);
                     const pathParts = relativePath.split(/[/\\]/);
                     
@@ -373,21 +459,24 @@ export class TestCaseRunnerProvider {
                         currentPath = folderPath;
                     }
                     
-                    // Добавляем тест-кейс с именем из JSON
+                    // Преобразуем MarkdownTestCase в TestCase
+                    const testCase = this.convertMarkdownToTestCase(mdCase, file.fsPath);
+                    
+                    // Добавляем тест-кейс с именем из заголовка (#)
                     const testCaseNode: TestCaseNode = {
                         type: 'testcase',
-                        name: json.name || path.basename(file.fsPath, '.json'),  // Используем name из JSON
+                        name: mdCase.title || path.basename(file.fsPath, '.md'),  // Используем заголовок # как название
                         path: relativePath,
                         filePath: file.fsPath,
                         relativePath: relativePath,
-                        data: json as TestCase,
+                        data: testCase,
                         children: []
                     };
                     
                     currentNode.children.push(testCaseNode);
                 }
             } catch (e) {
-                // Пропустить невалидные JSON
+                // Пропустить невалидные MD файлы
                 console.log(`Skipping file ${file.fsPath}: ${e}`);
             }
         }

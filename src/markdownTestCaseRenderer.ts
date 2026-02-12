@@ -460,6 +460,16 @@ export class MarkdownTestCaseRenderer {
             min-width: 0;
         }
 
+        .step-cell-editable.status-failed {
+            color: var(--vscode-errorForeground);
+            font-weight: 500;
+        }
+        
+        .step-cell-editable.status-skipped {
+            color: var(--vscode-descriptionForeground);
+            font-style: italic;
+        }
+        
         .step-cell-editable {
             width: 100%;
             border: none;
@@ -1322,6 +1332,28 @@ export class MarkdownTestCaseRenderer {
                 autoResizeTextarea(textarea);
                 textarea.addEventListener('input', function() {
                     autoResizeTextarea(this);
+                    
+                    // Обновляем tooltip и классы для статуса при вводе
+                    const field = this.getAttribute('data-step-field');
+                    if (field === 'status') {
+                        const statusValue = this.value.toLowerCase().trim();
+                        const reason = this.getAttribute('data-step-reason') || '';
+                        
+                        // Обновляем классы
+                        this.classList.remove('status-failed', 'status-skipped');
+                        if (statusValue === 'failed') {
+                            this.classList.add('status-failed');
+                        } else if (statusValue === 'skipped') {
+                            this.classList.add('status-skipped');
+                        }
+                        
+                        // Обновляем tooltip
+                        if ((statusValue === 'failed' || statusValue === 'skipped') && reason) {
+                            this.setAttribute('title', 'Причина: ' + reason);
+                        } else {
+                            this.removeAttribute('title');
+                        }
+                    }
                 });
                 // Also resize on focus to ensure proper height
                 textarea.addEventListener('focus', function() {
@@ -1434,13 +1466,52 @@ export class MarkdownTestCaseRenderer {
                 element.addEventListener('blur', function() {
                     const stepIndex = parseInt(this.getAttribute('data-step-index') || '0');
                     const field = this.getAttribute('data-step-field');
-                    const value = this.value || '';
-                    vscode.postMessage({
-                        command: 'updateStep',
-                        stepIndex: stepIndex,
-                        field: field,
-                        value: value
-                    });
+                    let value = this.value || '';
+                    
+                    // Для статуса: сохраняем причину из data-step-reason, если статус failed/skipped
+                    if (field === 'status') {
+                        const statusLower = value.toLowerCase().trim();
+                        const reason = this.getAttribute('data-step-reason') || '';
+                        
+                        // Если статус failed/skipped и есть причина, сохраняем причину отдельно
+                        // Причина будет объединена со статусом при сериализации
+                        if ((statusLower === 'failed' || statusLower === 'skipped') && reason) {
+                            // Отправляем обновление статуса и причины
+                            vscode.postMessage({
+                                command: 'updateStep',
+                                stepIndex: stepIndex,
+                                field: 'status',
+                                value: statusLower
+                            });
+                            vscode.postMessage({
+                                command: 'updateStep',
+                                stepIndex: stepIndex,
+                                field: 'reason',
+                                value: reason
+                            });
+                        } else {
+                            // Если статус не failed/skipped, удаляем причину
+                            vscode.postMessage({
+                                command: 'updateStep',
+                                stepIndex: stepIndex,
+                                field: 'status',
+                                value: statusLower
+                            });
+                            vscode.postMessage({
+                                command: 'updateStep',
+                                stepIndex: stepIndex,
+                                field: 'reason',
+                                value: ''
+                            });
+                        }
+                    } else {
+                        vscode.postMessage({
+                            command: 'updateStep',
+                            stepIndex: stepIndex,
+                            field: field,
+                            value: value
+                        });
+                    }
                 });
             });
 
@@ -2626,14 +2697,30 @@ export class MarkdownTestCaseRenderer {
         const gridColumnsStyle = `grid-template-columns: ${gridColumns};`;
 
         const rows = steps.map((step, index) => {
+            // Формируем tooltip с причиной, если она есть
+            const statusValue = step.status || '';
+            const reason = step.reason || '';
+            let tooltipText = '';
+            let statusDisplayClass = '';
+            
+            if (statusValue.toLowerCase() === 'failed' && reason) {
+                tooltipText = `Причина: ${reason}`;
+                statusDisplayClass = 'status-failed';
+            } else if (statusValue.toLowerCase() === 'skipped' && reason) {
+                tooltipText = `Причина: ${reason}`;
+                statusDisplayClass = 'status-skipped';
+            }
+            
             const statusCell = showStatusColumn ? `
                 <div class="steps-table-cell status-cell">
                     <textarea 
-                        class="step-cell-editable" 
+                        class="step-cell-editable ${statusDisplayClass}" 
                         data-step-index="${index}"
                         data-step-field="status"
+                        data-step-reason="${this.escapeHtml(reason)}"
                         rows="1"
-                    >${this.escapeHtml(step.status || '')}</textarea>
+                        title="${tooltipText ? this.escapeHtml(tooltipText) : ''}"
+                    >${this.escapeHtml(statusValue)}</textarea>
                 </div>
             ` : '';
 

@@ -33,6 +33,7 @@ export interface MarkdownTestStep {
     expectedResult: string;
     attachments?: string;
     status?: string;
+    reason?: string; // Причина для failed/skipped статусов
 }
 
 export class MarkdownTestCaseParser {
@@ -189,11 +190,28 @@ export class MarkdownTestCaseParser {
             const statusIndex = headers.findIndex(h => h.toLowerCase().includes('статус'));
 
             for (const row of rows) {
+                const statusCell = statusIndex >= 0 && row[statusIndex] ? row[statusIndex] : '';
+                // Парсим статус: может быть "passed", "failed<br>Причина: ...", "skipped<br>Причина: ..."
+                let status = '';
+                let reason = '';
+                
+                if (statusCell) {
+                    // Проверяем наличие <br> и причины
+                    const brMatch = statusCell.match(/^(.+?)(?:<br\s*\/?>|\\n)(?:Причина:\s*)?(.+)$/i);
+                    if (brMatch) {
+                        status = brMatch[1].trim().toLowerCase();
+                        reason = brMatch[2].trim();
+                    } else {
+                        status = this._normalizeStepCell(statusCell).toLowerCase();
+                    }
+                }
+                
                 const step: MarkdownTestStep = {
                     stepNumber: stepIndex >= 0 && row[stepIndex] ? parseInt(row[stepIndex]) || 0 : 0,
                     action: actionIndex >= 0 && row[actionIndex] ? this._normalizeStepCell(row[actionIndex]) : '',
                     expectedResult: expectedIndex >= 0 && row[expectedIndex] ? this._normalizeStepCell(row[expectedIndex]) : '',
-                    status: statusIndex >= 0 && row[statusIndex] ? this._normalizeStepCell(row[statusIndex]) : ''
+                    status: status || undefined,
+                    reason: reason || undefined
                 };
                 
                 if (step.stepNumber > 0 || step.action || step.expectedResult) {
@@ -347,14 +365,23 @@ export class MarkdownTestCaseParser {
 
         // Шаги тестирования
         lines.push('## Шаги тестирования');
-        lines.push('| Шаг |  Действие  |           ОР          |Статус |');
-        lines.push('|-----|------------|-----------------------|-------|');
+        lines.push('| Шаг |  Действие  |           ОР          | Статус |');
+        lines.push('|-----|------------|-----------------------|--------|');
         if (testCase.steps && testCase.steps.length > 0) {
             testCase.steps.forEach(step => {
                 const action = this._serializeStepCell(step.action);
                 const expected = this._serializeStepCell(step.expectedResult);
-                const status = this._serializeStepCell(step.status);
-                lines.push(`| ${step.stepNumber} | ${action} | ${expected} |${status} |`);
+                // Форматируем статус: если есть причина для failed/skipped, добавляем <br>Причина: ...
+                let status = '';
+                if (step.status) {
+                    const statusLower = step.status.toLowerCase();
+                    if ((statusLower === 'failed' || statusLower === 'skipped') && step.reason) {
+                        status = `${statusLower}<br>Причина: ${this._serializeStepCell(step.reason)}`;
+                    } else {
+                        status = statusLower;
+                    }
+                }
+                lines.push(`| ${step.stepNumber} | ${action} | ${expected} | ${status} |`);
             });
         }
         lines.push('');

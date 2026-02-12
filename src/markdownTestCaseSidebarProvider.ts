@@ -297,6 +297,8 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                     step.attachments = value;
                 } else if (field === 'status') {
                     step.status = value;
+                } else if (field === 'reason') {
+                    step.reason = value;
                 }
             }
 

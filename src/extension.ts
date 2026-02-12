@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { TestCaseSidebarProvider } from './testCaseSidebarProvider';
 import { MarkdownTestCaseSidebarProvider } from './markdownTestCaseSidebarProvider';
 import { SettingsProvider } from './settingsProvider';
 import { TestCaseRunnerProvider } from './testCaseRunnerProvider';
@@ -119,16 +118,6 @@ export async function activate(context: vscode.ExtensionContext) {
     // Initialize settings provider
     await SettingsProvider.initialize(context);
     
-    // Register sidebar provider for JSON test cases
-    const sidebarProvider = new TestCaseSidebarProvider(context.extensionUri);
-    
-    context.subscriptions.push(
-        vscode.window.registerWebviewViewProvider(
-            TestCaseSidebarProvider.viewType,
-            sidebarProvider
-        )
-    );
-
     // Register sidebar provider for Markdown test cases
     const markdownSidebarProvider = new MarkdownTestCaseSidebarProvider(context.extensionUri);
     
@@ -159,7 +148,6 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('testCaseViewer.refresh', () => {
             // Trigger sidebar refresh
-            sidebarProvider.updateContent();
             markdownSidebarProvider.updateContent();
         })
     );

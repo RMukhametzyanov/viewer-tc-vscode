@@ -10,7 +10,6 @@
     "Other"
   ],
   "activationEvents": [
-    "onLanguage:json",
     "onLanguage:markdown"
   ],
   "main": "./out/extension.js",
@@ -37,13 +36,8 @@
     "views": {
       "testCaseViewer": [
         {
-          "id": "testCaseViewer.sidebar",
-          "name": "Test Case Viewer",
-          "type": "webview"
-        },
-        {
           "id": "markdownTestCaseViewer.sidebar",
-          "name": "Markdown Test Case Viewer",
+          "name": "Test Case Viewer",
           "type": "webview"
         }
       ]
@@ -68,12 +62,12 @@
       "view/title": [
         {
           "command": "testCaseViewer.openSettings",
-          "when": "view == testCaseViewer.sidebar",
+          "when": "view == markdownTestCaseViewer.sidebar",
           "group": "navigation"
         },
         {
           "command": "testCaseViewer.createStandaloneHtml",
-          "when": "view == testCaseViewer.sidebar",
+          "when": "view == markdownTestCaseViewer.sidebar",
           "group": "navigation"
         }
       ],
