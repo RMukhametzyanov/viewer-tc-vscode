@@ -157,7 +157,7 @@ export class MarkdownTestCaseParser {
                         result.metadata.id = value;
                     } else if (field === 'Автор') {
                         result.metadata.author = value;
-                    } else if (field === 'Владелец') {
+                    } else if (field === 'Исполнитель' || field === 'Владелец') {
                         result.metadata.owner = value;
                     } else if (field === 'Статус') {
                         result.metadata.status = value;
@@ -243,8 +243,11 @@ export class MarkdownTestCaseParser {
                 if (!result.links) {
                     result.links = [];
                 }
-                // linkMatch[0] содержит ровно `[Текст](url)`
-                result.links.push(linkMatch[0].trim());
+                // linkMatch[0] содержит ровно `[Текст](url)`, убираем лишние символы после ссылки
+                const cleanLink = linkMatch[0].trim().replace(/\|[^|]*$/, '').trim();
+                if (cleanLink) {
+                    result.links.push(cleanLink);
+                }
             }
         } else if (section === 'Вложения') {
             // Обработка ссылок на файлы в формате [Название](относительный/путь/к/файлу)
@@ -289,7 +292,7 @@ export class MarkdownTestCaseParser {
         lines.push('|------|----------|');
         lines.push(`| **ID** | ${testCase.metadata.id || ''} |`);
         lines.push(`| **Автор** | ${testCase.metadata.author || ''} |`);
-        lines.push(`| **Владелец** | ${testCase.metadata.owner || ''} |`);
+        lines.push(`| **Исполнитель** | ${testCase.metadata.owner || ''} |`);
         lines.push(`| **Статус** | ${testCase.metadata.status || ''} |`);
         lines.push(`| **Тип теста** | ${testCase.metadata.testType || ''} |`);
         lines.push('');
@@ -300,9 +303,6 @@ export class MarkdownTestCaseParser {
             testCase.links.forEach(link => {
                 lines.push(` - ${link}`);
             });
-        } else {
-            lines.push(' - [Задача](https://..)');
-            lines.push(' - [Связанный тест-кейс](https://..)');
         }
         lines.push('');
 

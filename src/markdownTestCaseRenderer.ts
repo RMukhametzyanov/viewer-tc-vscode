@@ -14,6 +14,11 @@ export class MarkdownTestCaseRenderer {
     public static render(testCase: MarkdownTestCase, documentUri?: string, testers?: string[], tags?: string[], showStatusColumn: boolean = true): string {
         const testersList = testers || [];
         const availableTags = tags || [];
+        
+        // Ensure steps is always an array
+        if (!testCase.steps) {
+            testCase.steps = [];
+        }
 
         return `<!DOCTYPE html>
 <html lang="ru">
@@ -2344,7 +2349,7 @@ export class MarkdownTestCaseRenderer {
                         </select>
                     </div>
                     <div class="viewer-meta-item">
-                        <span class="viewer-meta-label">Владелец:</span>
+                        <span class="viewer-meta-label">Исполнитель:</span>
                         ${testers.length > 0 ? `
                         <select 
                             class="viewer-meta-select" 

@@ -44,7 +44,7 @@ async function createNewTestCase(context: vscode.ExtensionContext) {
 |------|----------|
 | **ID** | ${testCaseId} |
 | **Автор** | |
-| **Владелец** | |
+| **Исполнитель** | |
 | **Статус** | Готов|
 | **Тип теста** | Ручной|
 

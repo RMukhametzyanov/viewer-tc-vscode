@@ -664,9 +664,14 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
             
             // Check if it's a markdown test case - if it has any sections or title, show it
             // Even if empty, we should show the structure
+            // Ensure steps is always an array
+            if (!testCase.steps) {
+                testCase.steps = [];
+            }
+            
             const hasContent = testCase.title || 
                                Object.keys(testCase.metadata).length > 0 ||
-                               testCase.steps.length > 0 ||
+                               (testCase.steps && testCase.steps.length > 0) ||
                                testCase.description ||
                                testCase.preconditions ||
                                (testCase.tags && testCase.tags.length > 0) ||
