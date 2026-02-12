@@ -185,6 +185,16 @@ export async function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(treeView);
     
+    // Подписываемся на изменения фильтров для обновления заголовка
+    context.subscriptions.push(
+        treeViewProvider.onDidChangeFilters(() => {
+            updateTreeViewTitle(treeView, treeViewProvider);
+        })
+    );
+    
+    // Инициализируем заголовок при старте
+    updateTreeViewTitle(treeView, treeViewProvider);
+    
     // Сохраняем ссылку на treeView для доступа к выбранным элементам
     const treeViewRef = treeView;
     
@@ -264,7 +274,16 @@ export async function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         vscode.commands.registerCommand('testCaseViewer.showFilters', () => {
-            showFiltersPanel(context, treeViewProvider);
+            showQuickPickFilters(treeViewProvider, treeView);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.clearFilters', async () => {
+            treeViewProvider.clearFilters();
+            updateTreeViewTitle(treeView, treeViewProvider);
+            // Принудительно обновляем дерево через команду обновления
+            await vscode.commands.executeCommand('testCaseViewer.refreshTree');
         })
     );
 
@@ -424,6 +443,217 @@ function escapeHtml(text: string): string {
         .replace(/'/g, '&#039;');
 }
 
+// Функция для обновления заголовка дерева с индикатором фильтров
+// В VS Code нет прямого API для изменения title дерева после создания,
+// но мы можем использовать эту функцию для логирования или других целей
+function updateTreeViewTitle(treeView: vscode.TreeView<TestCaseTreeItem>, treeProvider: TestCaseTreeViewProvider): void {
+    const filters = treeProvider.getFilters();
+    const activeFiltersCount = Object.values(filters).filter(v => v).length;
+    
+    // В VS Code нет прямого способа изменить title дерева после создания,
+    // но можно использовать эту функцию для других целей (например, логирование)
+    // Индикатор фильтров будет показываться в QuickPick и в сообщениях
+}
+
+async function showQuickPickFilters(treeProvider: TestCaseTreeViewProvider, treeView: vscode.TreeView<TestCaseTreeItem>): Promise<void> {
+    const fieldLabels: { [key: string]: string } = {
+        author: 'Автор',
+        owner: 'Владелец',
+        reviewer: 'Ревьювер',
+        testType: 'Тип теста',
+        status: 'Статус',
+        epic: 'Эпик',
+        feature: 'Фича',
+        story: 'Стори',
+        tags: 'Теги'
+    };
+    
+    // Цикл для настройки нескольких фильтров подряд
+    while (true) {
+        const currentFilters = treeProvider.getFilters();
+        const activeFiltersCount = Object.values(currentFilters).filter(v => v).length;
+        
+        // Создаем список опций для выбора поля
+        const fieldOptions: vscode.QuickPickItem[] = Object.keys(fieldLabels).map(key => {
+            const currentValue = currentFilters[key as keyof typeof currentFilters];
+            const label = currentValue 
+                ? `$(filter) ${fieldLabels[key]}: ${currentValue}` 
+                : fieldLabels[key];
+            return {
+                label: label,
+                description: currentValue ? 'Текущий фильтр' : '',
+                detail: currentValue ? `Нажмите для изменения или удаления` : 'Нажмите для выбора значения',
+                picked: !!currentValue
+            };
+        });
+        
+        // Добавляем разделитель
+        fieldOptions.push(
+            { 
+                label: '',
+                kind: vscode.QuickPickItemKind.Separator
+            }
+        );
+        
+        // Добавляем специальные опции
+        fieldOptions.push(
+            { 
+                label: '$(clear-all) Сбросить все фильтры', 
+                description: activeFiltersCount > 0 ? `Активных фильтров: ${activeFiltersCount}` : 'Нет активных фильтров',
+                detail: activeFiltersCount > 0 ? 'Удалить все примененные фильтры' : ''
+            },
+            { 
+                label: '$(info) Показать активные фильтры', 
+                description: activeFiltersCount > 0 ? Object.entries(currentFilters)
+                    .filter(([_, v]) => v)
+                    .map(([k, v]) => `${fieldLabels[k]}: ${v}`)
+                    .join(', ') : 'Нет активных фильтров'
+            },
+            { 
+                label: '$(check) Готово', 
+                description: activeFiltersCount > 0 ? `Применить ${activeFiltersCount} фильтр(ов) и закрыть` : 'Закрыть без фильтров',
+                detail: 'Завершить настройку фильтров'
+            }
+        );
+        
+        const selectedField = await vscode.window.showQuickPick(fieldOptions, {
+            placeHolder: activeFiltersCount > 0 
+                ? `Выберите поле для фильтрации (активных: ${activeFiltersCount})`
+                : 'Выберите поле для фильтрации',
+            ignoreFocusOut: true
+        });
+        
+        if (!selectedField) {
+            // Пользователь нажал Escape - закрываем окно
+            return;
+        }
+        
+        // Проверяем, выбрана ли опция "Готово"
+        if (selectedField.label.includes('Готово')) {
+            // Применяем фильтры и закрываем
+            treeProvider.setFilters(currentFilters);
+            updateTreeViewTitle(treeView, treeProvider);
+            await vscode.commands.executeCommand('testCaseViewer.refreshTree');
+            return;
+        }
+    
+        // Обработка специальных опций
+        if (selectedField.label.includes('Сбросить все фильтры')) {
+            // Очищаем фильтры
+            treeProvider.clearFilters();
+            updateTreeViewTitle(treeView, treeProvider);
+            
+            // Небольшая задержка для гарантии обновления
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Принудительно обновляем дерево - используем несколько способов для надежности
+            treeProvider.refresh();
+            // Также вызываем команду обновления
+            await vscode.commands.executeCommand('testCaseViewer.refreshTree');
+            
+            // Проверяем, что фильтры действительно очищены
+            const filtersAfterClear = treeProvider.getFilters();
+            const stillActive = Object.values(filtersAfterClear).filter(v => v).length;
+            
+            if (stillActive === 0) {
+                vscode.window.showInformationMessage('Все фильтры сброшены');
+            } else {
+                vscode.window.showWarningMessage(`Фильтры не были полностью сброшены. Осталось активных: ${stillActive}`);
+            }
+            // Продолжаем цикл, чтобы пользователь мог настроить новые фильтры
+            continue;
+        }
+        
+        if (selectedField.label.includes('Показать активные фильтры')) {
+            if (activeFiltersCount === 0) {
+                vscode.window.showInformationMessage('Нет активных фильтров');
+            } else {
+                const filtersList = Object.entries(currentFilters)
+                    .filter(([_, v]) => v)
+                    .map(([k, v]) => `${fieldLabels[k]}: ${v}`)
+                    .join('\n');
+                vscode.window.showInformationMessage(`Активные фильтры:\n${filtersList}`);
+            }
+            // Продолжаем цикл, чтобы пользователь мог настроить фильтры
+            continue;
+        }
+    
+        // Определяем выбранное поле
+        const selectedFieldKey = Object.keys(fieldLabels).find(key => 
+            selectedField.label.includes(fieldLabels[key]) && !selectedField.label.includes('Сбросить') && !selectedField.label.includes('Показать') && !selectedField.label.includes('Готово')
+        );
+        
+        if (!selectedFieldKey) {
+            // Если не нашли поле, продолжаем цикл
+            continue;
+        }
+        
+        // Получаем уникальные значения для выбранного поля
+        let values: string[] = [];
+        if (selectedFieldKey === 'tags') {
+            values = await treeProvider.getUniqueTags();
+        } else {
+            // Используем тип из фильтров провайдера
+            type FilterKey = 'author' | 'owner' | 'reviewer' | 'testType' | 'status' | 'epic' | 'feature' | 'story';
+            values = await treeProvider.getUniqueValues(selectedFieldKey as FilterKey);
+        }
+        
+        if (values.length === 0) {
+            vscode.window.showWarningMessage(`Нет доступных значений для поля "${fieldLabels[selectedFieldKey]}"`);
+            // Продолжаем цикл, чтобы пользователь мог выбрать другое поле
+            continue;
+        }
+        
+        // Создаем опции для выбора значения
+        const valueOptions: vscode.QuickPickItem[] = [
+            {
+                label: '$(clear) Убрать фильтр',
+                description: currentFilters[selectedFieldKey as keyof typeof currentFilters] 
+                    ? `Текущее значение: ${currentFilters[selectedFieldKey as keyof typeof currentFilters]}`
+                    : '',
+                detail: 'Удалить фильтр по этому полю'
+            },
+            ...values.map(value => ({
+                label: value,
+                description: value === currentFilters[selectedFieldKey as keyof typeof currentFilters] ? 'Текущее значение' : '',
+                picked: value === currentFilters[selectedFieldKey as keyof typeof currentFilters]
+            }))
+        ];
+        
+        const selectedValue = await vscode.window.showQuickPick(valueOptions, {
+            placeHolder: `Выберите значение для "${fieldLabels[selectedFieldKey]}"`,
+            ignoreFocusOut: true
+        });
+        
+        if (!selectedValue) {
+            // Пользователь отменил выбор значения - возвращаемся к выбору поля
+            continue;
+        }
+        
+        // Применяем фильтр (но не обновляем дерево сразу, только в конце)
+        const newFilters = { ...currentFilters };
+        
+        if (selectedValue.label.includes('Убрать фильтр')) {
+            delete newFilters[selectedFieldKey as keyof typeof newFilters];
+        } else {
+            newFilters[selectedFieldKey as keyof typeof newFilters] = selectedValue.label;
+        }
+        
+        // Сохраняем фильтры временно (без обновления дерева)
+        treeProvider.setFilters(newFilters);
+        updateTreeViewTitle(treeView, treeProvider);
+        
+        // Показываем краткое сообщение о применении фильтра
+        const activeCount = Object.values(newFilters).filter(v => v).length;
+        // Не показываем сообщение каждый раз, чтобы не мешать пользователю
+        // vscode.window.showInformationMessage(`Фильтр "${fieldLabels[selectedFieldKey]}" применен (всего: ${activeCount})`);
+        
+        // Продолжаем цикл, чтобы пользователь мог настроить еще фильтры
+        // Дерево обновится автоматически при выходе из цикла (когда выберут "Готово")
+    }
+}
+
+// Старая функция (оставляем для обратной совместимости, но не используем)
 async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: TestCaseTreeViewProvider) {
     const panel = vscode.window.createWebviewPanel(
         'testCaseFilters',
@@ -624,16 +854,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
     </script>
 </body>
 </html>`;
-
-    function escapeHtml(text: string): string {
-        if (!text) return '';
-        return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
 
     panel.webview.html = html;
 

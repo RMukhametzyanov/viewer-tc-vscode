@@ -164,6 +164,9 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
     private _onDidChangeTreeData: vscode.EventEmitter<TestCaseTreeItem | undefined | null | void> = new vscode.EventEmitter<TestCaseTreeItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<TestCaseTreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
     
+    private _onDidChangeFilters: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
+    readonly onDidChangeFilters: vscode.Event<void> = this._onDidChangeFilters.event;
+    
     private _testCases: Map<string, TestCaseNode> = new Map();
     private _extensionUri: vscode.Uri;
     private _filters: {
@@ -201,12 +204,30 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
     refresh(): void {
         // Очищаем кэш дерева при обновлении, чтобы пересканировать при следующем запросе
         this._testCases.clear();
-        this._onDidChangeTreeData.fire();
+        // Обновляем все дерево - fire(undefined) обновляет весь корневой уровень
+        this._onDidChangeTreeData.fire(undefined);
     }
     
     setFilters(filters: typeof this._filters): void {
         this._filters = filters;
-        this.refresh();
+        this._onDidChangeFilters.fire();
+        // Принудительно обновляем дерево при изменении фильтров
+        this._testCases.clear();
+        // Обновляем все дерево - fire(undefined) обновляет весь корневой уровень
+        this._onDidChangeTreeData.fire(undefined);
+    }
+    
+    getFilters(): typeof this._filters {
+        return { ...this._filters };
+    }
+    
+    clearFilters(): void {
+        this._filters = {};
+        this._onDidChangeFilters.fire();
+        // Принудительно обновляем дерево при сбросе фильтров
+        this._testCases.clear();
+        // Обновляем все дерево - fire(undefined) обновляет весь корневой уровень
+        this._onDidChangeTreeData.fire(undefined);
     }
     
     getTreeItem(element: TestCaseTreeItem): vscode.TreeItem {

@@ -77,6 +77,11 @@
         "icon": "$(filter)"
       },
       {
+        "command": "testCaseViewer.clearFilters",
+        "title": "Сбросить фильтры",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "testCaseViewer.deleteTestCase",
         "title": "Удалить"
       },
@@ -113,6 +118,11 @@
         },
         {
           "command": "testCaseViewer.showFilters",
+          "when": "view == testCaseViewer.tree",
+          "group": "navigation"
+        },
+        {
+          "command": "testCaseViewer.clearFilters",
           "when": "view == testCaseViewer.tree",
           "group": "navigation"
         }
