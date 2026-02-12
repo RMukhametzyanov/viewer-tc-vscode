@@ -479,77 +479,114 @@ export class MarkdownTestCaseRenderer {
             outline-offset: -1px;
         }
 
-        .tags-container {
-            margin-bottom: 16px;
-        }
-        
-        .tags-input-wrapper {
-            position: relative;
-            margin-bottom: 12px;
-        }
-        
-        .tags-input-container {
-            position: relative;
+        .viewer-tags-row {
             display: flex;
             align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--vscode-panel-border);
+            font-size: 13px;
         }
         
-        .tags-input {
-            flex: 1;
-            font-size: 14px;
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-input-background);
-            border: 1px solid var(--vscode-input-border);
-            padding: 6px 30px 6px 8px;
-            border-radius: 2px;
-            font-family: var(--vscode-font-family);
-            box-sizing: border-box;
+        .tags-inline-container {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 4px;
+            position: relative;
         }
         
-        .tags-input:focus {
-            outline: 1px solid var(--vscode-focusBorder);
-            outline-offset: -1px;
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background-color: var(--vscode-textLink-foreground);
+            color: var(--vscode-editor-background);
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 500;
+            line-height: 1.4;
+            height: 20px;
         }
         
-        .tags-dropdown-toggle {
-            position: absolute;
-            right: 8px;
-            top: 50%;
-            transform: translateY(-50%);
+        .tag-chip-text {
+            user-select: none;
+        }
+        
+        .tag-chip-remove {
             background: transparent;
             border: none;
-            color: var(--vscode-foreground);
+            color: var(--vscode-editor-background);
             cursor: pointer;
-            font-size: 12px;
-            padding: 4px;
+            font-size: 14px;
+            line-height: 1;
+            padding: 0;
+            width: 16px;
+            height: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: transform 0.2s;
+            border-radius: 2px;
+            transition: background-color 0.2s;
+            opacity: 0.8;
         }
         
-        .tags-dropdown-toggle.open {
-            transform: translateY(-50%) rotate(180deg);
+        .tag-chip-remove:hover {
+            background-color: rgba(0, 0, 0, 0.2);
+            opacity: 1;
+        }
+        
+        .tags-add-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid var(--vscode-input-border);
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            height: 20px;
+            min-width: 20px;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        
+        .tags-add-btn:hover {
+            background-color: var(--vscode-list-hoverBackground);
+            border-color: var(--vscode-focusBorder);
         }
         
         .tags-dropdown {
             position: absolute;
             top: 100%;
             left: 0;
-            right: 0;
             background-color: var(--vscode-dropdown-background);
             border: 1px solid var(--vscode-dropdown-border);
-            border-radius: 2px;
-            margin-top: 2px;
+            border-radius: 4px;
+            margin-top: 4px;
+            min-width: 250px;
+            max-width: 400px;
             max-height: 300px;
             display: none;
             flex-direction: column;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
             z-index: 1000;
         }
         
         .tags-dropdown.visible {
             display: flex;
+        }
+        
+        .tags-dropdown-header {
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--vscode-textLink-foreground);
+            border-bottom: 1px solid var(--vscode-panel-border);
+            background-color: var(--vscode-editor-inactiveSelectionBackground);
         }
         
         .tags-dropdown-input {
@@ -559,26 +596,28 @@ export class MarkdownTestCaseRenderer {
             background-color: var(--vscode-input-background);
             border: none;
             border-bottom: 1px solid var(--vscode-panel-border);
-            padding: 8px;
-            border-radius: 2px 2px 0 0;
+            padding: 8px 12px;
             font-family: var(--vscode-font-family);
             box-sizing: border-box;
         }
         
         .tags-dropdown-input:focus {
-            outline: 1px solid var(--vscode-focusBorder);
-            outline-offset: -1px;
+            outline: none;
+        }
+        
+        .tags-dropdown-input::placeholder {
+            color: var(--vscode-descriptionForeground);
         }
         
         .tags-dropdown-list {
-            max-height: 250px;
+            max-height: 200px;
             overflow-y: auto;
         }
         
         .tags-dropdown-item {
             padding: 8px 12px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             color: var(--vscode-foreground);
             border-bottom: 1px solid var(--vscode-panel-border);
             transition: background-color 0.15s;
@@ -599,49 +638,6 @@ export class MarkdownTestCaseRenderer {
             color: var(--vscode-descriptionForeground);
             font-size: 13px;
             font-style: italic;
-        }
-        
-        .tags-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        
-        .tag-item {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background-color: var(--vscode-textLink-foreground);
-            color: var(--vscode-editor-background);
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 13px;
-            font-weight: 500;
-        }
-        
-        .tag-text {
-            user-select: none;
-        }
-        
-        .tag-remove {
-            background: transparent;
-            border: none;
-            color: var(--vscode-editor-background);
-            cursor: pointer;
-            font-size: 16px;
-            line-height: 1;
-            padding: 0;
-            width: 18px;
-            height: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 2px;
-            transition: background-color 0.2s;
-        }
-        
-        .tag-remove:hover {
-            background-color: rgba(0, 0, 0, 0.2);
         }
 
         .section-title-actions {
@@ -1410,13 +1406,12 @@ export class MarkdownTestCaseRenderer {
                 });
             });
 
-            // Handle tags dropdown
-            const tagsInput = document.getElementById('tags-input');
-            const tagsDropdownToggle = document.getElementById('tags-dropdown-toggle');
+            // Handle tags dropdown (new minimalistic design)
+            const tagsAddBtn = document.getElementById('tags-add-btn');
             const tagsDropdown = document.getElementById('tags-dropdown');
             const tagsDropdownInput = document.getElementById('tags-dropdown-input');
             const tagsDropdownList = document.getElementById('tags-dropdown-list');
-            const tagsList = document.getElementById('tags-list');
+            const tagsListInline = document.getElementById('tags-list-inline');
             const currentTags = ${JSON.stringify(testCase.tags || [])};
             const availableTags = ${JSON.stringify(availableTags)};
             let selectedDropdownIndex = -1;
@@ -1424,7 +1419,7 @@ export class MarkdownTestCaseRenderer {
             let isDropdownOpen = false;
             
             function updateTagsField() {
-                const tagItems = tagsList.querySelectorAll('.tag-item .tag-text');
+                const tagItems = tagsListInline.querySelectorAll('.tag-chip .tag-chip-text');
                 const tagsArray = Array.from(tagItems).map(item => item.textContent.trim()).filter(t => t.length > 0);
                 const tagsValue = tagsArray.join(', ');
                 vscode.postMessage({
@@ -1438,26 +1433,27 @@ export class MarkdownTestCaseRenderer {
                 if (!tagText || tagText.trim().length === 0) return;
                 
                 const trimmedTag = tagText.trim();
-                const existingTags = Array.from(tagsList.querySelectorAll('.tag-item .tag-text')).map(item => item.textContent.trim());
+                const existingTags = Array.from(tagsListInline.querySelectorAll('.tag-chip .tag-chip-text')).map(item => item.textContent.trim());
                 
                 if (existingTags.includes(trimmedTag)) {
                     return; // Tag already exists
                 }
                 
-                const tagItem = document.createElement('span');
-                tagItem.className = 'tag-item';
+                const tagChip = document.createElement('span');
+                tagChip.className = 'tag-chip';
                 const escapedTag = trimmedTag.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                tagItem.innerHTML = '<span class="tag-text">' + escapedTag + '</span><button class="tag-remove" data-tag="' + escapedTag + '" title="Удалить тег">×</button>';
+                tagChip.innerHTML = '<span class="tag-chip-text">' + escapedTag + '</span><button class="tag-chip-remove" data-tag="' + escapedTag + '" title="Удалить тег">×</button>';
                 
-                const removeBtn = tagItem.querySelector('.tag-remove');
+                const removeBtn = tagChip.querySelector('.tag-chip-remove');
                 if (removeBtn) {
-                    removeBtn.addEventListener('click', function() {
-                        tagItem.remove();
+                    removeBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        tagChip.remove();
                         updateTagsField();
                     });
                 }
                 
-                tagsList.appendChild(tagItem);
+                tagsListInline.appendChild(tagChip);
                 updateTagsField();
                 
                 // If tag is not in available tags, add it to config
@@ -1533,10 +1529,9 @@ export class MarkdownTestCaseRenderer {
             }
             
             function openDropdown() {
-                if (!tagsDropdown || !tagsDropdownToggle) return;
+                if (!tagsDropdown || !tagsAddBtn) return;
                 isDropdownOpen = true;
                 tagsDropdown.classList.add('visible');
-                tagsDropdownToggle.classList.add('open');
                 if (tagsDropdownInput) {
                     tagsDropdownInput.focus();
                     updateDropdownList();
@@ -1544,42 +1539,35 @@ export class MarkdownTestCaseRenderer {
             }
             
             function closeDropdown() {
-                if (!tagsDropdown || !tagsDropdownToggle) return;
+                if (!tagsDropdown) return;
                 isDropdownOpen = false;
                 tagsDropdown.classList.remove('visible');
-                tagsDropdownToggle.classList.remove('open');
                 selectedDropdownIndex = -1;
                 if (tagsDropdownInput) {
                     tagsDropdownInput.value = '';
                 }
             }
             
-            if (tagsInput && tagsDropdownToggle && tagsDropdown && tagsDropdownInput && tagsDropdownList && tagsList) {
+            if (tagsAddBtn && tagsDropdown && tagsDropdownInput && tagsDropdownList && tagsListInline) {
                 // Add remove handlers to existing tags
-                tagsList.querySelectorAll('.tag-remove').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const tagItem = this.closest('.tag-item');
-                        if (tagItem) {
-                            tagItem.remove();
+                tagsListInline.querySelectorAll('.tag-chip-remove').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const tagChip = this.closest('.tag-chip');
+                        if (tagChip) {
+                            tagChip.remove();
                             updateTagsField();
                         }
                     });
                 });
                 
-                // Toggle dropdown on button click
-                tagsDropdownToggle.addEventListener('click', function(e) {
+                // Open dropdown on button click
+                tagsAddBtn.addEventListener('click', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                     if (isDropdownOpen) {
                         closeDropdown();
                     } else {
-                        openDropdown();
-                    }
-                });
-                
-                // Open dropdown on input click
-                tagsInput.addEventListener('click', function() {
-                    if (!isDropdownOpen) {
                         openDropdown();
                     }
                 });
@@ -1623,8 +1611,7 @@ export class MarkdownTestCaseRenderer {
                 // Close dropdown when clicking outside
                 document.addEventListener('click', function(e) {
                     if (isDropdownOpen && tagsDropdown && !tagsDropdown.contains(e.target) && 
-                        e.target !== tagsInput && e.target !== tagsDropdownToggle && 
-                        !tagsInput.contains(e.target) && !tagsDropdownToggle.contains(e.target)) {
+                        e.target !== tagsAddBtn && !tagsAddBtn.contains(e.target)) {
                         closeDropdown();
                     }
                 });
@@ -1827,11 +1814,14 @@ export class MarkdownTestCaseRenderer {
                         `}
                     </div>
                 </div>
+                <div class="viewer-tags-row">
+                    <span class="viewer-meta-label">Теги:</span>
+                    ${this._renderTagsInline(testCase.tags || [])}
+                </div>
             </div>
             
             ${this._renderSection('links', 'Связи', this._renderLinks(testCase.links || []), false, false, '<button class="section-add-btn" id="links-add-toggle" title="Добавить связь">+</button>')}
             ${this._renderSection('epic-feature-story', 'Epic/Feature/Story', this._renderEpicFeatureStory(testCase.epicFeatureStory))}
-            ${this._renderSection('tags', 'Теги (tags)', this._renderTags(testCase.tags || []))}
             ${this._renderSection('description', 'Описание (description)', this._renderDescription(testCase.description || ''), true, true)}
             ${this._renderSection('preconditions', 'Предусловия (preconditions)', this._renderPreconditions(testCase.preconditions || ''), true, true)}
             ${this._renderSection('steps', 'Шаги тестирования', this._renderSteps(testCase.steps || [], showStatusColumn))}
@@ -1908,39 +1898,28 @@ export class MarkdownTestCaseRenderer {
         `;
     }
 
-    private static _renderTags(tags: string[]): string {
+    private static _renderTagsInline(tags: string[]): string {
         return `
-            <div class="tags-container">
-                <div class="tags-input-wrapper">
-                    <div class="tags-input-container">
-                        <input 
-                            type="text" 
-                            class="tags-input" 
-                            id="tags-input" 
-                            placeholder="Введите тег для поиска или создания нового"
-                            autocomplete="off"
-                            readonly
-                        />
-                        <button class="tags-dropdown-toggle" id="tags-dropdown-toggle" title="Открыть список тегов">▼</button>
-                    </div>
-                    <div class="tags-dropdown" id="tags-dropdown">
-                        <input 
-                            type="text" 
-                            class="tags-dropdown-input" 
-                            id="tags-dropdown-input" 
-                            placeholder="Введите тег для поиска или создания нового"
-                            autocomplete="off"
-                        />
-                        <div class="tags-dropdown-list" id="tags-dropdown-list"></div>
-                    </div>
-                </div>
-                <div class="tags-list" id="tags-list">
+            <div class="tags-inline-container">
+                <div class="tags-list-inline" id="tags-list-inline">
                     ${tags.map(tag => `
-                        <span class="tag-item">
-                            <span class="tag-text">${this.escapeHtml(tag)}</span>
-                            <button class="tag-remove" data-tag="${this.escapeHtml(tag)}" title="Удалить тег">×</button>
+                        <span class="tag-chip">
+                            <span class="tag-chip-text">${this.escapeHtml(tag)}</span>
+                            <button class="tag-chip-remove" data-tag="${this.escapeHtml(tag)}" title="Удалить тег">×</button>
                         </span>
                     `).join('')}
+                </div>
+                <button class="tags-add-btn" id="tags-add-btn" title="Добавить тег">+</button>
+                <div class="tags-dropdown" id="tags-dropdown">
+                    <div class="tags-dropdown-header">Предложения</div>
+                    <input 
+                        type="text" 
+                        class="tags-dropdown-input" 
+                        id="tags-dropdown-input" 
+                        placeholder="Введите тег для поиска или создания нового"
+                        autocomplete="off"
+                    />
+                    <div class="tags-dropdown-list" id="tags-dropdown-list"></div>
                 </div>
             </div>
         `;
