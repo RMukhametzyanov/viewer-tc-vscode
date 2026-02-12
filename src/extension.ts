@@ -4,6 +4,7 @@ import * as path from 'path';
 import { MarkdownTestCaseSidebarProvider } from './markdownTestCaseSidebarProvider';
 import { SettingsProvider } from './settingsProvider';
 import { TestCaseRunnerProvider } from './testCaseRunnerProvider';
+import { TestCaseTreeViewProvider, TestCaseTreeItem } from './testCaseTreeViewProvider';
 
 function generateUUID(): string {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -13,7 +14,7 @@ function generateUUID(): string {
     });
 }
 
-async function createNewTestCase(context: vscode.ExtensionContext) {
+async function createNewTestCase(context: vscode.ExtensionContext, folderPath?: string): Promise<string | undefined> {
     // Get the workspace folder
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -76,16 +77,23 @@ async function createNewTestCase(context: vscode.ExtensionContext) {
 
     // Determine file path
     let filePath: string;
-    const activeEditor = vscode.window.activeTextEditor;
     
-    if (activeEditor && activeEditor.document.uri.scheme === 'file') {
-        // If there's an active file, create in the same directory
-        const activeFilePath = activeEditor.document.uri.fsPath;
-        const activeDir = path.dirname(activeFilePath);
-        filePath = path.join(activeDir, `${fileName}.md`);
+    if (folderPath) {
+        // Если указан путь папки из дерева, создаем там
+        const workspacePath = workspaceFolders[0].uri.fsPath;
+        filePath = path.join(workspacePath, folderPath, `${fileName}.md`);
     } else {
-        // Otherwise, create in the workspace root
-        filePath = path.join(workspaceFolders[0].uri.fsPath, `${fileName}.md`);
+        const activeEditor = vscode.window.activeTextEditor;
+        
+        if (activeEditor && activeEditor.document.uri.scheme === 'file') {
+            // If there's an active file, create in the same directory
+            const activeFilePath = activeEditor.document.uri.fsPath;
+            const activeDir = path.dirname(activeFilePath);
+            filePath = path.join(activeDir, `${fileName}.md`);
+        } else {
+            // Otherwise, create in the workspace root
+            filePath = path.join(workspaceFolders[0].uri.fsPath, `${fileName}.md`);
+        }
     }
 
     // Check if file already exists
@@ -102,6 +110,12 @@ async function createNewTestCase(context: vscode.ExtensionContext) {
 
     // Write file
     try {
+        // Создаем директорию, если она не существует
+        const dir = path.dirname(filePath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        
         fs.writeFileSync(filePath, markdownContent, 'utf8');
         
         // Open the new file
@@ -109,8 +123,12 @@ async function createNewTestCase(context: vscode.ExtensionContext) {
         await vscode.window.showTextDocument(document);
         
         vscode.window.showInformationMessage(`Тест-кейс "${fileName}.md" успешно создан`);
+        
+        // Возвращаем путь к созданному файлу
+        return filePath;
     } catch (error) {
         vscode.window.showErrorMessage(`Ошибка при создании файла: ${error}`);
+        return undefined;
     }
 }
 
@@ -153,16 +171,477 @@ export async function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(
-        vscode.commands.registerCommand('testCaseViewer.createNewTestCase', () => {
-            createNewTestCase(context);
-        })
-    );
-
-    context.subscriptions.push(
         vscode.commands.registerCommand('testCaseViewer.createStandaloneHtml', () => {
             runnerProvider.createStandaloneHtml();
         })
     );
+
+    // Register tree view provider with drag and drop support
+    const treeViewProvider = new TestCaseTreeViewProvider(context.extensionUri);
+    const treeView = vscode.window.createTreeView('testCaseViewer.tree', {
+        treeDataProvider: treeViewProvider,
+        dragAndDropController: treeViewProvider,
+        showCollapseAll: true
+    });
+    context.subscriptions.push(treeView);
+    
+    // Сохраняем ссылку на treeView для доступа к выбранным элементам
+    const treeViewRef = treeView;
+    
+    // Функция для поиска и фокусировки на файле в дереве
+    async function revealFileInTree(filePath: string): Promise<void> {
+        // Находим элемент в дереве по пути к файлу
+        const findItem = async (items: TestCaseTreeItem[]): Promise<TestCaseTreeItem | undefined> => {
+            for (const item of items) {
+                if (item.node.type === 'testcase' && item.node.filePath === filePath) {
+                    return item;
+                }
+                if (item.node.type === 'folder' && item.node.children.length > 0) {
+                    // Раскрываем папку, чтобы получить дочерние элементы
+                    const children = await treeViewProvider.getChildren(item);
+                    const found = await findItem(children);
+                    if (found) {
+                        return found;
+                    }
+                }
+            }
+            return undefined;
+        };
+        
+        // Получаем корневые элементы
+        const rootItems = await treeViewProvider.getChildren(undefined);
+        const foundItem = await findItem(rootItems);
+        
+        if (foundItem) {
+            // Раскрываем родительские папки и фокусируемся на элементе
+            await treeView.reveal(foundItem, { select: true, focus: true, expand: 2 });
+        }
+    }
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.createNewTestCase', async (item?: TestCaseTreeItem) => {
+            let folderPath: string | undefined;
+            if (item && item.node.type === 'folder') {
+                folderPath = item.node.path;
+            } else if (item && item.node.type === 'testcase' && item.node.relativePath) {
+                // Если выбран тест-кейс, создаем в той же папке
+                const pathParts = item.node.relativePath.split(/[/\\]/);
+                if (pathParts.length > 1) {
+                    pathParts.pop(); // Убираем имя файла
+                    folderPath = pathParts.join('/');
+                }
+            }
+            const createdFilePath = await createNewTestCase(context, folderPath);
+            
+            if (createdFilePath) {
+                // Обновляем дерево
+                treeViewProvider.refresh();
+                
+                // Ждем немного, чтобы дерево обновилось, затем находим и фокусируемся на новом файле
+                setTimeout(async () => {
+                    await revealFileInTree(createdFilePath);
+                }, 300);
+            }
+        })
+    );
+
+    // Register tree view commands
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.openTestCase', (filePath: string) => {
+            if (filePath) {
+                vscode.workspace.openTextDocument(vscode.Uri.file(filePath)).then(doc => {
+                    vscode.window.showTextDocument(doc);
+                });
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.refreshTree', () => {
+            treeViewProvider.refresh();
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.showFilters', () => {
+            showFiltersPanel(context, treeViewProvider);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.deleteTestCase', async (item?: TestCaseTreeItem) => {
+            // Если команда вызвана через горячую клавишу, получаем выбранный элемент из tree view
+            if (!item) {
+                const selection = treeViewRef.selection;
+                if (selection && selection.length > 0) {
+                    item = selection[0];
+                } else {
+                    return;
+                }
+            }
+            
+            if (!item) {
+                return;
+            }
+
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                return;
+            }
+
+            let itemName: string;
+            let itemPath: string;
+            let isFolder = false;
+
+            if (item.node.type === 'testcase' && item.node.filePath) {
+                // Удаление файла
+                itemName = path.basename(item.node.filePath);
+                itemPath = item.node.filePath;
+            } else if (item.node.type === 'folder') {
+                // Удаление папки
+                isFolder = true;
+                itemName = item.node.name;
+                const workspacePath = workspaceFolders[0].uri.fsPath;
+                itemPath = path.join(workspacePath, item.node.path);
+            } else {
+                return;
+            }
+
+            const confirmMessage = isFolder 
+                ? `Вы уверены, что хотите удалить папку "${itemName}" и все её содержимое?`
+                : `Вы уверены, что хотите удалить файл "${itemName}"?`;
+            
+            const confirm = await vscode.window.showWarningMessage(
+                confirmMessage,
+                { modal: true },
+                'Да',
+                'Нет'
+            );
+
+            if (confirm === 'Да') {
+                try {
+                    const uri = vscode.Uri.file(itemPath);
+                    const stat = await vscode.workspace.fs.stat(uri);
+                    
+                    if (stat.type === vscode.FileType.Directory) {
+                        // Удаление папки рекурсивно
+                        await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: true });
+                        vscode.window.showInformationMessage(`Папка "${itemName}" успешно удалена`);
+                    } else {
+                        // Удаление файла
+                        await vscode.workspace.fs.delete(uri, { useTrash: true });
+                        vscode.window.showInformationMessage(`Файл "${itemName}" успешно удален`);
+                    }
+                    treeViewProvider.refresh();
+                } catch (error) {
+                    vscode.window.showErrorMessage(`Ошибка при удалении: ${error}`);
+                }
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.createFolder', async (item?: TestCaseTreeItem) => {
+            const workspaceFolders = vscode.workspace.workspaceFolders;
+            if (!workspaceFolders || workspaceFolders.length === 0) {
+                vscode.window.showErrorMessage('Откройте рабочую папку для создания папки');
+                return;
+            }
+
+            // Определяем путь, где создавать папку
+            let targetPath: string;
+            if (item && item.node.type === 'folder') {
+                // Если выбрана папка, создаем внутри неё
+                const workspacePath = workspaceFolders[0].uri.fsPath;
+                targetPath = path.join(workspacePath, item.node.path);
+            } else if (item && item.node.type === 'testcase' && item.node.relativePath) {
+                // Если выбран файл, создаем в той же папке
+                const workspacePath = workspaceFolders[0].uri.fsPath;
+                const pathParts = item.node.relativePath.split(/[/\\]/);
+                pathParts.pop(); // Убираем имя файла
+                if (pathParts.length > 0) {
+                    targetPath = path.join(workspacePath, ...pathParts);
+                } else {
+                    targetPath = workspacePath;
+                }
+            } else {
+                // Создаем в корне проекта
+                targetPath = workspaceFolders[0].uri.fsPath;
+            }
+
+            // Запрашиваем имя папки
+            const folderName = await vscode.window.showInputBox({
+                prompt: 'Введите имя папки',
+                placeHolder: 'Новая папка',
+                value: 'Новая папка',
+                validateInput: (value) => {
+                    if (!value || value.trim().length === 0) {
+                        return 'Имя папки не может быть пустым';
+                    }
+                    // Проверяем на недопустимые символы
+                    const invalidChars = /[<>:"/\\|?*]/;
+                    if (invalidChars.test(value)) {
+                        return 'Имя папки содержит недопустимые символы';
+                    }
+                    return null;
+                }
+            });
+
+            if (!folderName) {
+                return;
+            }
+
+            const newFolderPath = path.join(targetPath, folderName);
+
+            // Проверяем, существует ли уже такая папка
+            try {
+                await vscode.workspace.fs.stat(vscode.Uri.file(newFolderPath));
+                vscode.window.showErrorMessage(`Папка "${folderName}" уже существует`);
+                return;
+            } catch {
+                // Папка не существует, можно создавать
+            }
+
+            try {
+                // Создаем папку
+                await vscode.workspace.fs.createDirectory(vscode.Uri.file(newFolderPath));
+                vscode.window.showInformationMessage(`Папка "${folderName}" успешно создана`);
+                treeViewProvider.refresh();
+            } catch (error) {
+                vscode.window.showErrorMessage(`Ошибка при создании папки: ${error}`);
+            }
+        })
+    );
+}
+
+function escapeHtml(text: string): string {
+    if (!text) return '';
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: TestCaseTreeViewProvider) {
+    const panel = vscode.window.createWebviewPanel(
+        'testCaseFilters',
+        'Фильтры дерева объектов',
+        vscode.ViewColumn.Beside,
+        {
+            enableScripts: true,
+            retainContextWhenHidden: true
+        }
+    );
+
+    // Получаем уникальные значения для фильтров
+    const authors = await treeProvider.getUniqueValues('author');
+    const owners = await treeProvider.getUniqueValues('owner');
+    const reviewers = await treeProvider.getUniqueValues('reviewer');
+    const testTypes = await treeProvider.getUniqueValues('testType');
+    const statuses = await treeProvider.getUniqueValues('status');
+    const epics = await treeProvider.getUniqueValues('epic');
+    const features = await treeProvider.getUniqueValues('feature');
+    const stories = await treeProvider.getUniqueValues('story');
+    const tags = await treeProvider.getUniqueTags();
+
+    const html = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Фильтры</title>
+    <style>
+        body {
+            font-family: var(--vscode-font-family);
+            padding: 20px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+        }
+        .filter-group {
+            margin-bottom: 16px;
+        }
+        .filter-label {
+            display: block;
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+        .filter-select {
+            width: 100%;
+            font-size: 14px;
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-dropdown-background);
+            border: 1px solid var(--vscode-dropdown-border);
+            padding: 6px 8px;
+            border-radius: 2px;
+            font-family: var(--vscode-font-family);
+            cursor: pointer;
+        }
+        .filter-select:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+        }
+        .filter-reset-btn {
+            width: 100%;
+            margin-top: 16px;
+            padding: 8px;
+            background-color: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: 1px solid var(--vscode-button-border);
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .filter-reset-btn:hover {
+            background-color: var(--vscode-button-secondaryHoverBackground);
+        }
+    </style>
+</head>
+<body>
+    <div class="filter-group">
+        <label class="filter-label">Автор:</label>
+        <select class="filter-select" id="filter-author">
+            <option value="">Все</option>
+            ${authors.map(a => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('')}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label class="filter-label">Владелец:</label>
+        <select class="filter-select" id="filter-owner">
+            <option value="">Все</option>
+            ${owners.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label class="filter-label">Ревьювер:</label>
+        <select class="filter-select" id="filter-reviewer">
+            <option value="">Все</option>
+            ${reviewers.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label class="filter-label">Тип теста:</label>
+        <select class="filter-select" id="filter-test-type">
+            <option value="">Все</option>
+            ${testTypes.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label class="filter-label">Статус:</label>
+        <select class="filter-select" id="filter-status">
+            <option value="">Все</option>
+            ${statuses.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label class="filter-label">Эпик:</label>
+        <select class="filter-select" id="filter-epic">
+            <option value="">Все</option>
+            ${epics.map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('')}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label class="filter-label">Фича:</label>
+        <select class="filter-select" id="filter-feature">
+            <option value="">Все</option>
+            ${features.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('')}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label class="filter-label">Стори:</label>
+        <select class="filter-select" id="filter-story">
+            <option value="">Все</option>
+            ${stories.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('')}
+        </select>
+    </div>
+    <div class="filter-group">
+        <label class="filter-label">Теги:</label>
+        <select class="filter-select" id="filter-tags">
+            <option value="">Все</option>
+            ${tags.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
+        </select>
+    </div>
+    <button class="filter-reset-btn" id="filter-reset-btn">Сбросить фильтры</button>
+    <script>
+        const vscode = acquireVsCodeApi();
+        
+        const authorSelect = document.getElementById('filter-author');
+        const ownerSelect = document.getElementById('filter-owner');
+        const reviewerSelect = document.getElementById('filter-reviewer');
+        const testTypeSelect = document.getElementById('filter-test-type');
+        const statusSelect = document.getElementById('filter-status');
+        const epicSelect = document.getElementById('filter-epic');
+        const featureSelect = document.getElementById('filter-feature');
+        const storySelect = document.getElementById('filter-story');
+        const tagsSelect = document.getElementById('filter-tags');
+        const resetBtn = document.getElementById('filter-reset-btn');
+        
+        function applyFilters() {
+            const filters = {
+                author: authorSelect.value || undefined,
+                owner: ownerSelect.value || undefined,
+                reviewer: reviewerSelect.value || undefined,
+                testType: testTypeSelect.value || undefined,
+                status: statusSelect.value || undefined,
+                epic: epicSelect.value || undefined,
+                feature: featureSelect.value || undefined,
+                story: storySelect.value || undefined,
+                tags: tagsSelect.value || undefined
+            };
+            
+            vscode.postMessage({
+                command: 'applyFilters',
+                filters: filters
+            });
+        }
+        
+        authorSelect.addEventListener('change', applyFilters);
+        ownerSelect.addEventListener('change', applyFilters);
+        reviewerSelect.addEventListener('change', applyFilters);
+        testTypeSelect.addEventListener('change', applyFilters);
+        statusSelect.addEventListener('change', applyFilters);
+        epicSelect.addEventListener('change', applyFilters);
+        featureSelect.addEventListener('change', applyFilters);
+        storySelect.addEventListener('change', applyFilters);
+        tagsSelect.addEventListener('change', applyFilters);
+        
+        resetBtn.addEventListener('click', () => {
+            authorSelect.value = '';
+            ownerSelect.value = '';
+            reviewerSelect.value = '';
+            testTypeSelect.value = '';
+            statusSelect.value = '';
+            epicSelect.value = '';
+            featureSelect.value = '';
+            storySelect.value = '';
+            tagsSelect.value = '';
+            applyFilters();
+        });
+    </script>
+</body>
+</html>`;
+
+    function escapeHtml(text: string): string {
+        if (!text) return '';
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    panel.webview.html = html;
+
+    panel.webview.onDidReceiveMessage(async (message) => {
+        if (message.command === 'applyFilters') {
+            treeProvider.setFilters(message.filters);
+        }
+    });
 }
 
 export function deactivate() {
