@@ -37,7 +37,11 @@ jobs:
       run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
     - name: Package extension
-      run: vsce package --out test-case-viewer-${{ steps.package_version.outputs.VERSION }}.vsix
+      run: |
+        vsce package \
+          --out test-case-viewer-${{ steps.package_version.outputs.VERSION }}.vsix \
+          --baseContentUrl https://github.com/${{ github.repository }}/blob/${{ github.ref_name }} \
+          --baseImagesUrl https://github.com/${{ github.repository }}/raw/${{ github.ref_name }}
       continue-on-error: false
 
     - name: Upload artifact

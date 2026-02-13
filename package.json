@@ -3,7 +3,11 @@
   "displayName": "Test Case Viewer",
   "description": "Просмотр тест-кейсов в удобном формате",
   "version": "0.0.1",
-  "publisher": "your-publisher-name",
+  "publisher": "RMukhametzyanov",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RMukhametzyanov/vscode_test_viewer.git"
+  },
   "engines": {
     "vscode": "^1.74.0"
   },

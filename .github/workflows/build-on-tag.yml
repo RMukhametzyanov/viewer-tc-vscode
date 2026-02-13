@@ -33,7 +33,11 @@ jobs:
       run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
     - name: Package extension
-      run: vsce package --out test-case-viewer-${{ steps.tag_version.outputs.VERSION }}.vsix
+      run: |
+        vsce package \
+          --out test-case-viewer-${{ steps.tag_version.outputs.VERSION }}.vsix \
+          --baseContentUrl https://github.com/${{ github.repository }}/blob/${{ github.ref_name }} \
+          --baseImagesUrl https://github.com/${{ github.repository }}/raw/${{ github.ref_name }}
 
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
