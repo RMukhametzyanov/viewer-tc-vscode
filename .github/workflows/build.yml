@@ -20,7 +20,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '18'
+        node-version: '20'
         cache: 'npm'
 
     - name: Install dependencies
@@ -32,8 +32,12 @@ jobs:
     - name: Install vsce
       run: npm install -g @vscode/vsce
 
+    - name: Get version from package.json
+      id: package_version
+      run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
     - name: Package extension
-      run: vsce package --out test-case-viewer-${{ github.ref_name }}.vsix
+      run: vsce package --out test-case-viewer-${{ steps.package_version.outputs.VERSION }}.vsix
       continue-on-error: false
 
     - name: Upload artifact
