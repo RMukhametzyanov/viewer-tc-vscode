@@ -138,7 +138,7 @@ export async function activate(context: vscode.ExtensionContext) {
     await SettingsProvider.initialize(context);
     
     // Register sidebar provider for Markdown test cases
-    const markdownSidebarProvider = new MarkdownTestCaseSidebarProvider(context.extensionUri);
+    const markdownSidebarProvider = new MarkdownTestCaseSidebarProvider(context.extensionUri, context);
     
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(

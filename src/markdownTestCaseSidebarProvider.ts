@@ -13,6 +13,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
+        private readonly _context: vscode.ExtensionContext,
     ) {}
 
     private _isUpdatingFromFile = false;
@@ -87,6 +88,11 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                     return;
                 case 'openStatistics':
                     await vscode.commands.executeCommand('testCaseViewer.showStatistics');
+                    return;
+                case 'saveCollapseState':
+                    // Сохраняем состояние сворачивания блоков в глобальное хранилище
+                    await this._context.globalState.update('descriptionCollapsed', message.descriptionCollapsed);
+                    await this._context.globalState.update('preconditionsCollapsed', message.preconditionsCollapsed);
                     return;
             }
         });
@@ -708,7 +714,20 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                 // Get focus info if we need to restore it
                 const focusInfo = restoreFocus ? this._focusedElementInfo : null;
                 
-                this._view.webview.html = MarkdownTestCaseRenderer.render(testCase, documentUri, testers, tags, showStatusColumn, focusInfo);
+                // Get saved collapse state
+                const descriptionCollapsed = this._context.globalState.get<boolean>('descriptionCollapsed', true);
+                const preconditionsCollapsed = this._context.globalState.get<boolean>('preconditionsCollapsed', true);
+                
+                this._view.webview.html = MarkdownTestCaseRenderer.render(
+                    testCase, 
+                    documentUri, 
+                    testers, 
+                    tags, 
+                    showStatusColumn, 
+                    focusInfo,
+                    descriptionCollapsed,
+                    preconditionsCollapsed
+                );
                 
                 // Clear focus info after using it
                 if (restoreFocus) {

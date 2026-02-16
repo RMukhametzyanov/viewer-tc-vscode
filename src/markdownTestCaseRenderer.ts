@@ -11,7 +11,7 @@ export class MarkdownTestCaseRenderer {
             .replace(/'/g, '&#039;');
     }
 
-    public static render(testCase: MarkdownTestCase, documentUri?: string, testers?: string[], tags?: string[], showStatusColumn: boolean = true, focusInfo?: { id: string; selectionStart?: number; selectionEnd?: number } | null): string {
+    public static render(testCase: MarkdownTestCase, documentUri?: string, testers?: string[], tags?: string[], showStatusColumn: boolean = true, focusInfo?: { id: string; selectionStart?: number; selectionEnd?: number } | null, descriptionCollapsed: boolean = true, preconditionsCollapsed: boolean = true): string {
         const testersList = testers || [];
         const availableTags = tags || [];
         
@@ -854,7 +854,9 @@ export class MarkdownTestCaseRenderer {
             box-sizing: border-box;
             resize: vertical;
             min-height: 60px;
+            max-height: 585px;
             line-height: 1.5;
+            overflow-y: auto;
         }
         
         .description-inline-textarea:focus {
@@ -1067,7 +1069,9 @@ export class MarkdownTestCaseRenderer {
             box-sizing: border-box;
             resize: vertical;
             min-height: 60px;
+            max-height: 585px;
             line-height: 1.5;
+            overflow-y: auto;
         }
         
         .preconditions-inline-textarea:focus {
@@ -1451,7 +1455,7 @@ export class MarkdownTestCaseRenderer {
         </button>
     </div>
     <div class="container">
-        ${this._renderContent(testCase, testersList, showStatusColumn)}
+        ${this._renderContent(testCase, testersList, showStatusColumn, descriptionCollapsed, preconditionsCollapsed)}
     </div>
     <script>
         (function() {
@@ -2569,12 +2573,51 @@ export class MarkdownTestCaseRenderer {
                 });
             }
 
+            // Function to auto-resize textarea based on content
+            function autoResizeTextarea(textarea) {
+                if (!textarea) return;
+                
+                // Reset height to auto to get accurate scrollHeight
+                textarea.style.height = 'auto';
+                
+                // Calculate content height
+                const scrollHeight = textarea.scrollHeight;
+                const minHeight = 60; // 3 lines minimum
+                const maxHeight = 585; // 30 lines maximum
+                
+                // Set height within bounds
+                const newHeight = Math.max(minHeight, Math.min(maxHeight, scrollHeight));
+                textarea.style.height = newHeight + 'px';
+            }
+            
             // Handle description toggle
             const descriptionToggleBtn = document.getElementById('description-toggle-btn');
             const descriptionHeader = document.querySelector('.description-header');
             const descriptionContentWrapper = document.getElementById('description-content-wrapper');
             const descriptionTextarea = document.getElementById('test-case-description');
             const descriptionToggleIcon = descriptionToggleBtn?.querySelector('.description-toggle-icon');
+            
+            // Handle preconditions toggle (declare before toggleDescription to use in it)
+            const preconditionsToggleBtn = document.getElementById('preconditions-toggle-btn');
+            const preconditionsHeader = document.querySelector('.preconditions-header');
+            const preconditionsContentWrapper = document.getElementById('preconditions-content-wrapper');
+            const preconditionsTextarea = document.getElementById('test-case-preconditions');
+            const preconditionsToggleIcon = preconditionsToggleBtn?.querySelector('.preconditions-toggle-icon');
+            
+            // Auto-resize textareas on load
+            if (descriptionTextarea) {
+                autoResizeTextarea(descriptionTextarea);
+                descriptionTextarea.addEventListener('input', function() {
+                    autoResizeTextarea(descriptionTextarea);
+                });
+            }
+            
+            if (preconditionsTextarea) {
+                autoResizeTextarea(preconditionsTextarea);
+                preconditionsTextarea.addEventListener('input', function() {
+                    autoResizeTextarea(preconditionsTextarea);
+                });
+            }
             
             function toggleDescription() {
                 if (!descriptionContentWrapper || !descriptionToggleIcon) return;
@@ -2585,16 +2628,24 @@ export class MarkdownTestCaseRenderer {
                     // Разворачиваем
                     descriptionContentWrapper.classList.remove('collapsed');
                     descriptionToggleIcon.textContent = '↓';
-                    // Увеличиваем количество строк при разворачивании
+                    // Автоматически вычисляем высоту при разворачивании
                     if (descriptionTextarea) {
-                        const lineCount = (descriptionTextarea.value || '').split('\\n').length;
-                        descriptionTextarea.setAttribute('rows', Math.max(3, Math.min(10, lineCount)).toString());
+                        setTimeout(() => autoResizeTextarea(descriptionTextarea), 10);
                     }
                 } else {
                     // Сворачиваем
                     descriptionContentWrapper.classList.add('collapsed');
                     descriptionToggleIcon.textContent = '→';
                 }
+                
+                // Сохраняем состояние
+                const newCollapsedState = descriptionContentWrapper.classList.contains('collapsed');
+                const preconditionsState = preconditionsContentWrapper ? preconditionsContentWrapper.classList.contains('collapsed') : true;
+                vscode.postMessage({
+                    command: 'saveCollapseState',
+                    descriptionCollapsed: newCollapsedState,
+                    preconditionsCollapsed: preconditionsState
+                });
             }
             
             if (descriptionToggleBtn && descriptionContentWrapper && descriptionToggleIcon) {
@@ -2618,13 +2669,6 @@ export class MarkdownTestCaseRenderer {
                 });
             }
 
-            // Handle preconditions toggle
-            const preconditionsToggleBtn = document.getElementById('preconditions-toggle-btn');
-            const preconditionsHeader = document.querySelector('.preconditions-header');
-            const preconditionsContentWrapper = document.getElementById('preconditions-content-wrapper');
-            const preconditionsTextarea = document.getElementById('test-case-preconditions');
-            const preconditionsToggleIcon = preconditionsToggleBtn?.querySelector('.preconditions-toggle-icon');
-            
             function togglePreconditions() {
                 if (!preconditionsContentWrapper || !preconditionsToggleIcon) return;
                 
@@ -2634,16 +2678,24 @@ export class MarkdownTestCaseRenderer {
                     // Разворачиваем
                     preconditionsContentWrapper.classList.remove('collapsed');
                     preconditionsToggleIcon.textContent = '↓';
-                    // Увеличиваем количество строк при разворачивании
+                    // Автоматически вычисляем высоту при разворачивании
                     if (preconditionsTextarea) {
-                        const lineCount = (preconditionsTextarea.value || '').split('\\n').length;
-                        preconditionsTextarea.setAttribute('rows', Math.max(3, Math.min(10, lineCount)).toString());
+                        setTimeout(() => autoResizeTextarea(preconditionsTextarea), 10);
                     }
                 } else {
                     // Сворачиваем
                     preconditionsContentWrapper.classList.add('collapsed');
                     preconditionsToggleIcon.textContent = '→';
                 }
+                
+                // Сохраняем состояние
+                const newCollapsedState = preconditionsContentWrapper.classList.contains('collapsed');
+                const descriptionState = descriptionContentWrapper ? descriptionContentWrapper.classList.contains('collapsed') : true;
+                vscode.postMessage({
+                    command: 'saveCollapseState',
+                    descriptionCollapsed: descriptionState,
+                    preconditionsCollapsed: newCollapsedState
+                });
             }
             
             if (preconditionsToggleBtn && preconditionsContentWrapper && preconditionsToggleIcon) {
@@ -2838,7 +2890,7 @@ export class MarkdownTestCaseRenderer {
 </html>`;
     }
 
-    private static _renderContent(testCase: MarkdownTestCase, testers: string[], showStatusColumn: boolean = true): string {
+    private static _renderContent(testCase: MarkdownTestCase, testers: string[], showStatusColumn: boolean = true, descriptionCollapsed: boolean = true, preconditionsCollapsed: boolean = true): string {
         return `
             <div class="viewer-header">
                 <input 
@@ -2941,10 +2993,10 @@ export class MarkdownTestCaseRenderer {
                     ${this._renderEpicFeatureStoryInline(testCase.epicFeatureStory)}
                 </div>
                 <div class="viewer-description-row">
-                    ${this._renderDescriptionInline(testCase.description || '')}
+                    ${this._renderDescriptionInline(testCase.description || '', descriptionCollapsed)}
                 </div>
                 <div class="viewer-preconditions-row">
-                    ${this._renderPreconditionsInline(testCase.preconditions || '')}
+                    ${this._renderPreconditionsInline(testCase.preconditions || '', preconditionsCollapsed)}
                 </div>
                 <div class="viewer-attachments-row">
                     <span class="viewer-meta-label">Вложения:</span>
@@ -3068,54 +3120,50 @@ export class MarkdownTestCaseRenderer {
         `;
     }
 
-    private static _renderDescriptionInline(description: string): string {
-        const lines = description.split('\\n');
-        const lineCount = lines.length;
-        const isCollapsed = true; // По умолчанию свернуто
-        const initialRows = Math.max(3, Math.min(10, lineCount));
+    private static _renderDescriptionInline(description: string, isCollapsed: boolean = true): string {
+        const collapsedClass = isCollapsed ? 'collapsed' : '';
+        const toggleIcon = isCollapsed ? '→' : '↓';
         
         return `
             <div class="description-inline-container">
                 <div class="description-header">
                     <span class="viewer-meta-label">Описание:</span>
                     <button class="description-toggle-btn" id="description-toggle-btn" title="Развернуть/свернуть описание">
-                        <span class="description-toggle-icon">→</span>
+                        <span class="description-toggle-icon">${toggleIcon}</span>
                     </button>
                 </div>
-                <div class="description-content-wrapper collapsed" id="description-content-wrapper">
+                <div class="description-content-wrapper ${collapsedClass}" id="description-content-wrapper">
                     <textarea 
                         class="description-inline-textarea" 
                         id="test-case-description" 
                         data-field="description"
                         placeholder="Описание тест-кейса"
-                        rows="${initialRows}"
+                        rows="3"
                     >${this.escapeHtml(description)}</textarea>
                 </div>
             </div>
         `;
     }
 
-    private static _renderPreconditionsInline(preconditions: string): string {
-        const lines = preconditions.split('\\n');
-        const lineCount = lines.length;
-        const isCollapsed = true; // По умолчанию свернуто
-        const initialRows = Math.max(3, Math.min(10, lineCount));
+    private static _renderPreconditionsInline(preconditions: string, isCollapsed: boolean = true): string {
+        const collapsedClass = isCollapsed ? 'collapsed' : '';
+        const toggleIcon = isCollapsed ? '→' : '↓';
         
         return `
             <div class="preconditions-inline-container">
                 <div class="preconditions-header">
                     <span class="viewer-meta-label">Предусловия:</span>
                     <button class="preconditions-toggle-btn" id="preconditions-toggle-btn" title="Развернуть/свернуть предусловия">
-                        <span class="preconditions-toggle-icon">→</span>
+                        <span class="preconditions-toggle-icon">${toggleIcon}</span>
                     </button>
                 </div>
-                <div class="preconditions-content-wrapper collapsed" id="preconditions-content-wrapper">
+                <div class="preconditions-content-wrapper ${collapsedClass}" id="preconditions-content-wrapper">
                     <textarea 
                         class="preconditions-inline-textarea" 
                         id="test-case-preconditions" 
                         data-field="preconditions"
                         placeholder="Предусловия для выполнения тест-кейса"
-                        rows="${initialRows}"
+                        rows="3"
                     >${this.escapeHtml(preconditions)}</textarea>
                 </div>
             </div>
