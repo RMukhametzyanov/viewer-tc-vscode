@@ -1125,16 +1125,43 @@ export class MarkdownTestCaseRenderer {
         .link-item {
             display: flex;
             align-items: center;
+            gap: 8px;
             font-size: 13px;
         }
         
         .link-item a {
             color: var(--vscode-textLink-foreground);
             text-decoration: none;
+            flex: 1;
         }
         
         .link-item a:hover {
             text-decoration: underline;
+        }
+
+        .link-remove-btn {
+            background: transparent;
+            border: none;
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 2px;
+            transition: background-color 0.2s;
+            opacity: 0.7;
+            flex-shrink: 0;
+        }
+
+        .link-remove-btn:hover {
+            background-color: var(--vscode-inputValidation-errorBackground);
+            color: var(--vscode-inputValidation-errorForeground);
+            opacity: 1;
         }
         
         .links-dropdown {
@@ -2380,7 +2407,22 @@ export class MarkdownTestCaseRenderer {
                 linkItem.className = 'link-item';
                 const linkIndex = linksListInline.querySelectorAll('.link-item').length;
                 linkItem.setAttribute('data-link-index', linkIndex.toString());
-                linkItem.innerHTML = '<a href="' + escapedUrl + '" target="_blank" rel="noopener noreferrer">' + escapedTitle + '</a>';
+                linkItem.innerHTML = '<a href="' + escapedUrl + '" target="_blank" rel="noopener noreferrer">' + escapedTitle + '</a>' +
+                    '<button class="link-remove-btn" data-link-index="' + linkIndex + '" title="Удалить связь">×</button>';
+                
+                // Добавляем обработчик удаления для новой кнопки
+                const removeBtn = linkItem.querySelector('.link-remove-btn');
+                if (removeBtn) {
+                    removeBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const index = parseInt(this.getAttribute('data-link-index') || '0', 10);
+                        vscode.postMessage({
+                            command: 'removeLink',
+                            index: index
+                        });
+                    });
+                }
                 
                 linksListInline.appendChild(linkItem);
                 updateLinksField();
@@ -2455,6 +2497,19 @@ export class MarkdownTestCaseRenderer {
                         e.target !== linksAddBtn && !linksAddBtn.contains(e.target)) {
                         closeLinksDropdown();
                     }
+                });
+
+                // Обработка удаления связей
+                document.querySelectorAll('.link-remove-btn').forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const index = parseInt(this.getAttribute('data-link-index') || '0', 10);
+                        vscode.postMessage({
+                            command: 'removeLink',
+                            index: index
+                        });
+                    });
                 });
             }
 
@@ -2882,6 +2937,7 @@ export class MarkdownTestCaseRenderer {
                     ${parsedLinks.map((link, index) => `
                         <div class="link-item" data-link-index="${index}">
                             <a href="${this.escapeHtml(link.url || '#')}" target="_blank" rel="noopener noreferrer">${this.escapeHtml(link.title || 'Без названия')}</a>
+                            <button class="link-remove-btn" data-link-index="${index}" title="Удалить связь">×</button>
                         </div>
                     `).join('')}
                 </div>

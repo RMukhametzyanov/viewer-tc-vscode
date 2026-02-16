@@ -78,6 +78,9 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                 case 'handleDroppedFile':
                     await this._handleDroppedFile(message.fileName, message.fileData, message.fileSize, message.fileType);
                     return;
+                case 'removeLink':
+                    await this._removeLink(message.index);
+                    return;
                 case 'executeCommand':
                     await vscode.commands.executeCommand(message.commandId);
                     return;
@@ -1069,6 +1072,55 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
             vscode.window.showInformationMessage(`Файл "${fileName}" успешно добавлен в вложения`);
         } catch (error) {
             vscode.window.showErrorMessage(`Ошибка при добавлении файла: ${error}`);
+        }
+    }
+
+    private async _removeLink(index: number) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            return;
+        }
+        
+        const isMarkdown = activeEditor.document.languageId === 'markdown' || 
+                          activeEditor.document.fileName.endsWith('.md') ||
+                          activeEditor.document.fileName.endsWith('.markdown');
+        
+        if (!isMarkdown) {
+            return;
+        }
+
+        try {
+            const document = activeEditor.document;
+            const content = document.getText();
+            const testCase = MarkdownTestCaseParser.parse(content);
+            
+            if (testCase.links && testCase.links.length > index) {
+                // Удаляем связь из списка
+                testCase.links.splice(index, 1);
+            }
+
+            const newContent = MarkdownTestCaseParser.serialize(testCase);
+            
+            this._isUpdatingFromFile = true;
+            this._lastUpdateTime = Date.now();
+            
+            const edit = new vscode.WorkspaceEdit();
+            const fullRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length)
+            );
+            edit.replace(document.uri, fullRange, newContent);
+            
+            await vscode.workspace.applyEdit(edit);
+            await document.save();
+            
+            setTimeout(() => {
+                this._isUpdatingFromFile = false;
+                this.updateContent();
+            }, 200);
+        } catch (error) {
+            this._isUpdatingFromFile = false;
+            vscode.window.showErrorMessage(`Ошибка при удалении связи: ${error}`);
         }
     }
 }
