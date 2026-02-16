@@ -941,6 +941,36 @@ export class MarkdownTestCaseRenderer {
             background-color: var(--vscode-list-hoverBackground);
             border-color: var(--vscode-focusBorder);
         }
+
+        .viewer-attachments-row.drag-over {
+            background-color: var(--vscode-list-hoverBackground);
+            border-color: var(--vscode-textLink-foreground);
+            border-style: dashed;
+            border-width: 2px;
+            border-radius: 4px;
+            padding: 8px;
+        }
+
+        .viewer-attachments-row {
+            position: relative;
+        }
+
+        .viewer-attachments-row::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .viewer-attachments-row.drag-over::before {
+            opacity: 0.1;
+            background-color: var(--vscode-textLink-foreground);
+        }
         
         .preconditions-inline-container {
             display: flex;
@@ -2524,6 +2554,63 @@ export class MarkdownTestCaseRenderer {
                     vscode.postMessage({
                         command: 'selectFileToAttach'
                     });
+                });
+            }
+
+            // Обработка drag-and-drop для вложений
+            const attachmentsContainer = document.querySelector('.viewer-attachments-row');
+            if (attachmentsContainer) {
+                // Предотвращаем стандартное поведение браузера при перетаскивании
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    attachmentsContainer.addEventListener(eventName, function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    });
+                });
+
+                // Визуальная обратная связь при наведении
+                attachmentsContainer.addEventListener('dragenter', function(e) {
+                    attachmentsContainer.classList.add('drag-over');
+                });
+
+                attachmentsContainer.addEventListener('dragover', function(e) {
+                    attachmentsContainer.classList.add('drag-over');
+                });
+
+                attachmentsContainer.addEventListener('dragleave', function(e) {
+                    // Проверяем, что мы действительно покинули контейнер
+                    if (!attachmentsContainer.contains(e.relatedTarget)) {
+                        attachmentsContainer.classList.remove('drag-over');
+                    }
+                });
+
+                // Обработка сброса файла
+                attachmentsContainer.addEventListener('drop', function(e) {
+                    attachmentsContainer.classList.remove('drag-over');
+                    
+                    const dataTransfer = e.dataTransfer;
+                    if (dataTransfer && dataTransfer.files && dataTransfer.files.length > 0) {
+                        const files = Array.from(dataTransfer.files);
+                        
+                        // Отправляем каждый файл на обработку
+                        files.forEach(file => {
+                            // Читаем файл как data URL для передачи в extension
+                            const reader = new FileReader();
+                            reader.onload = function(event) {
+                                if (event.target && event.target.result) {
+                                    // Отправляем файл в extension
+                                    vscode.postMessage({
+                                        command: 'handleDroppedFile',
+                                        fileName: file.name,
+                                        fileData: event.target.result,
+                                        fileSize: file.size,
+                                        fileType: file.type
+                                    });
+                                }
+                            };
+                            reader.readAsDataURL(file);
+                        });
+                    }
                 });
             }
 

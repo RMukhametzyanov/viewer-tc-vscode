@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { MarkdownTestCaseParser, MarkdownTestCase, MarkdownComment } from './markdownTestCaseParser';
 import { MarkdownTestCaseRenderer } from './markdownTestCaseRenderer';
 import { SettingsProvider } from './settingsProvider';
@@ -72,6 +74,9 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                     return;
                 case 'selectFileToAttach':
                     await this._selectFileToAttach();
+                    return;
+                case 'handleDroppedFile':
+                    await this._handleDroppedFile(message.fileName, message.fileData, message.fileSize, message.fileType);
                     return;
                 case 'executeCommand':
                     await vscode.commands.executeCommand(message.commandId);
@@ -878,6 +883,16 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
     private async _selectFileToAttach() {
         const activeEditor = vscode.window.activeTextEditor;
         if (!activeEditor) {
+            vscode.window.showErrorMessage('Откройте файл тест-кейса для добавления вложения');
+            return;
+        }
+
+        const isMarkdown = activeEditor.document.languageId === 'markdown' || 
+                          activeEditor.document.fileName.endsWith('.md') ||
+                          activeEditor.document.fileName.endsWith('.markdown');
+        
+        if (!isMarkdown) {
+            vscode.window.showErrorMessage('Откройте файл тест-кейса для добавления вложения');
             return;
         }
 
@@ -897,11 +912,124 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
         });
 
         if (fileUri && fileUri[0]) {
-            const selectedUri = fileUri[0];
-            const relativePath = vscode.workspace.asRelativePath(selectedUri);
-            const fileName = selectedUri.path.split('/').pop() || selectedUri.path.split('\\').pop() || 'Файл';
+            try {
+                const document = activeEditor.document;
+                const testCaseFilePath = document.uri.fsPath;
+                const testCaseDir = path.dirname(testCaseFilePath);
+                
+                const selectedUri = fileUri[0];
+                const sourceFilePath = selectedUri.fsPath;
+                const fileName = path.basename(sourceFilePath);
+                
+                // Создаем папку _attachment если её нет
+                const attachmentDir = path.join(testCaseDir, '_attachment');
+                if (!fs.existsSync(attachmentDir)) {
+                    fs.mkdirSync(attachmentDir, { recursive: true });
+                }
+                
+                // Санитизируем имя файла (убираем недопустимые символы)
+                const sanitizedFileName = fileName.replace(/[<>:"/\\|?*]/g, '_');
+                
+                // Проверяем, существует ли файл с таким именем
+                let targetFileName = sanitizedFileName;
+                let targetFilePath = path.join(attachmentDir, targetFileName);
+                let counter = 1;
+                
+                // Если файл существует, добавляем номер
+                while (fs.existsSync(targetFilePath)) {
+                    const fileExtension = path.extname(sanitizedFileName);
+                    const baseFileName = path.basename(sanitizedFileName, fileExtension);
+                    targetFileName = `${baseFileName}_${counter}${fileExtension}`;
+                    targetFilePath = path.join(attachmentDir, targetFileName);
+                    counter++;
+                }
+                
+                // Копируем файл
+                fs.copyFileSync(sourceFilePath, targetFilePath);
+                
+                // Вычисляем относительный путь от тест-кейса к файлу
+                const relativePath = path.relative(testCaseDir, targetFilePath);
+                // Нормализуем путь для использования в markdown (используем прямые слеши)
+                const normalizedRelativePath = relativePath.replace(/\\/g, '/');
+                
+                // Добавляем ссылку в тест-кейс (используем оригинальное имя для отображения)
+                await this._addAttachedDocument(normalizedRelativePath, fileName);
+                
+                vscode.window.showInformationMessage(`Файл "${fileName}" успешно добавлен в вложения`);
+            } catch (error) {
+                vscode.window.showErrorMessage(`Ошибка при добавлении файла: ${error}`);
+            }
+        }
+    }
+
+    private async _handleDroppedFile(fileName: string, fileData: string, fileSize: number, fileType: string) {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor) {
+            vscode.window.showErrorMessage('Откройте файл тест-кейса для добавления вложения');
+            return;
+        }
+        
+        const isMarkdown = activeEditor.document.languageId === 'markdown' || 
+                          activeEditor.document.fileName.endsWith('.md') ||
+                          activeEditor.document.fileName.endsWith('.markdown');
+        
+        if (!isMarkdown) {
+            vscode.window.showErrorMessage('Откройте файл тест-кейса для добавления вложения');
+            return;
+        }
+
+        try {
+            const document = activeEditor.document;
+            const testCaseFilePath = document.uri.fsPath;
+            const testCaseDir = path.dirname(testCaseFilePath);
             
-            await this._addAttachedDocument(relativePath, fileName);
+            // Создаем папку _attachment если её нет
+            const attachmentDir = path.join(testCaseDir, '_attachment');
+            if (!fs.existsSync(attachmentDir)) {
+                fs.mkdirSync(attachmentDir, { recursive: true });
+            }
+            
+            // Санитизируем имя файла (убираем недопустимые символы)
+            const sanitizedFileName = fileName.replace(/[<>:"/\\|?*]/g, '_');
+            
+            // Проверяем, существует ли файл с таким именем
+            let targetFileName = sanitizedFileName;
+            let targetFilePath = path.join(attachmentDir, targetFileName);
+            let counter = 1;
+            
+            // Если файл существует, добавляем номер
+            while (fs.existsSync(targetFilePath)) {
+                const fileExtension = path.extname(sanitizedFileName);
+                const baseFileName = path.basename(sanitizedFileName, fileExtension);
+                targetFileName = `${baseFileName}_${counter}${fileExtension}`;
+                targetFilePath = path.join(attachmentDir, targetFileName);
+                counter++;
+            }
+            
+            // Декодируем base64 данные
+            // fileData приходит в формате "data:type;base64,base64data"
+            const base64Match = fileData.match(/^data:.*?;base64,(.+)$/);
+            if (!base64Match || !base64Match[1]) {
+                throw new Error('Неверный формат данных файла');
+            }
+            
+            const base64Data = base64Match[1];
+            const buffer = Buffer.from(base64Data, 'base64');
+            
+            // Записываем файл
+            fs.writeFileSync(targetFilePath, buffer);
+            
+            // Вычисляем относительный путь от тест-кейса к файлу
+            const relativePath = path.relative(testCaseDir, targetFilePath);
+            // Нормализуем путь для использования в markdown (используем прямые слеши)
+            const normalizedRelativePath = relativePath.replace(/\\/g, '/');
+            
+            // Добавляем ссылку в тест-кейс (используем оригинальное имя для отображения)
+            await this._addAttachedDocument(normalizedRelativePath, fileName);
+            
+            vscode.window.showInformationMessage(`Файл "${fileName}" успешно добавлен в вложения`);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Ошибка при добавлении файла: ${error}`);
         }
     }
 }
