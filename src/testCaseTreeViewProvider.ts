@@ -180,6 +180,7 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
         feature?: string;
         story?: string;
         tags?: string;
+        commentStatus?: string;
     } = {};
     
     // Drag and Drop MIME types
@@ -340,6 +341,39 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
             }
         }
         
+        if (this._filters.commentStatus) {
+            // Проверяем наличие комментариев с нужным статусом
+            const comments = data.notes;
+            if (!comments || !Array.isArray(comments)) {
+                return false;
+            }
+            
+            // Нормализуем статус фильтра (OPEN, CLOSED, FIXED -> верхний регистр для сравнения)
+            const filterStatus = this._filters.commentStatus.toUpperCase();
+            const hasMatchingComment = comments.some((comment: any) => {
+                if (!comment || typeof comment !== 'object') {
+                    return false;
+                }
+                const commentStatus = (comment.status || '').toUpperCase();
+                // Сравниваем статусы: OPEN, CLOSED, FIXED
+                // CLOSED может также соответствовать FIXED (оба означают закрытый комментарий)
+                if (filterStatus === 'OPEN' && commentStatus === 'OPEN') {
+                    return true;
+                }
+                if (filterStatus === 'CLOSED' && (commentStatus === 'CLOSED' || commentStatus === 'FIXED')) {
+                    return true;
+                }
+                if (filterStatus === 'FIXED' && commentStatus === 'FIXED') {
+                    return true;
+                }
+                return false;
+            });
+            
+            if (!hasMatchingComment) {
+                return false;
+            }
+        }
+        
         return true;
     }
     
@@ -353,7 +387,8 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
             this._filters.epic ||
             this._filters.feature ||
             this._filters.story ||
-            this._filters.tags
+            this._filters.tags ||
+            this._filters.commentStatus
         );
     }
     
@@ -815,7 +850,7 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
             })),
             createdAt: undefined,
             updatedAt: undefined,
-            notes: undefined
+            notes: mdCase.comments || undefined
         };
         return testCase;
     }

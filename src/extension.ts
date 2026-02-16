@@ -808,6 +808,15 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
             ${tags.map(t => `<option value="${escapeHtml(t)}" ${currentFilters.tags === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}
         </select>
     </div>
+    <div class="filter-group">
+        <label class="filter-label">Статус комментариев:</label>
+        <select class="filter-select" id="filter-comment-status">
+            <option value="">Все</option>
+            <option value="OPEN" ${currentFilters.commentStatus === 'OPEN' ? 'selected' : ''}>OPEN</option>
+            <option value="CLOSED" ${currentFilters.commentStatus === 'CLOSED' ? 'selected' : ''}>CLOSED</option>
+            <option value="FIXED" ${currentFilters.commentStatus === 'FIXED' ? 'selected' : ''}>FIXED</option>
+        </select>
+    </div>
     <button class="filter-reset-btn" id="filter-reset-btn">Сбросить фильтры</button>
     <script>
         const vscode = acquireVsCodeApi();
@@ -820,6 +829,7 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
         const featureSelect = document.getElementById('filter-feature');
         const storySelect = document.getElementById('filter-story');
         const tagsSelect = document.getElementById('filter-tags');
+        const commentStatusSelect = document.getElementById('filter-comment-status');
         const resetBtn = document.getElementById('filter-reset-btn');
         
         function applyFilters() {
@@ -831,7 +841,8 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
                 epic: epicSelect.value || undefined,
                 feature: featureSelect.value || undefined,
                 story: storySelect.value || undefined,
-                tags: tagsSelect.value || undefined
+                tags: tagsSelect.value || undefined,
+                commentStatus: commentStatusSelect.value || undefined
             };
             
             vscode.postMessage({
@@ -848,6 +859,7 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
         featureSelect.addEventListener('change', applyFilters);
         storySelect.addEventListener('change', applyFilters);
         tagsSelect.addEventListener('change', applyFilters);
+        commentStatusSelect.addEventListener('change', applyFilters);
         
         resetBtn.addEventListener('click', () => {
             authorSelect.value = '';
@@ -858,6 +870,7 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
             featureSelect.value = '';
             storySelect.value = '';
             tagsSelect.value = '';
+            commentStatusSelect.value = '';
             applyFilters();
         });
     </script>
