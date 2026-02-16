@@ -9,6 +9,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
     public static readonly viewType = 'markdownTestCaseViewer.sidebar';
 
     private _view?: vscode.WebviewView;
+    private _focusedElementInfo: { id: string; selectionStart?: number; selectionEnd?: number } | null = null;
 
     constructor(
         private readonly _extensionUri: vscode.Uri,
@@ -97,6 +98,9 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
         webviewView.webview.onDidReceiveMessage((message) => {
             if (message.command === 'focusState') {
                 isUserEditing = message.hasFocus;
+            } else if (message.command === 'saveFocusState') {
+                // Save focus information before update
+                this._focusedElementInfo = message.focusInfo;
             }
         });
 
@@ -215,7 +219,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
             // Small delay to let file update, then refresh webview
             setTimeout(() => {
                 this._isUpdatingFromFile = false;
-                this.updateContent();
+                this.updateContent(true);
             }, 200);
         } catch (error) {
             this._isUpdatingFromFile = false;
@@ -273,7 +277,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
             // Small delay to let file update, then refresh webview
             setTimeout(() => {
                 this._isUpdatingFromFile = false;
-                this.updateContent();
+                this.updateContent(true);
             }, 200);
         } catch (error) {
             this._isUpdatingFromFile = false;
@@ -336,7 +340,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
             // Small delay to let file update, then refresh webview
             setTimeout(() => {
                 this._isUpdatingFromFile = false;
-                this.updateContent();
+                this.updateContent(true);
             }, 200);
         } catch (error) {
             this._isUpdatingFromFile = false;
@@ -400,7 +404,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
             // Small delay to let file update, then refresh webview
             setTimeout(() => {
                 this._isUpdatingFromFile = false;
-                this.updateContent();
+                this.updateContent(true);
             }, 200);
         } catch (error) {
             this._isUpdatingFromFile = false;
@@ -457,7 +461,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
             // Small delay to let file update, then refresh webview
             setTimeout(() => {
                 this._isUpdatingFromFile = false;
-                this.updateContent();
+                this.updateContent(true);
             }, 200);
         } catch (error) {
             this._isUpdatingFromFile = false;
@@ -517,7 +521,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
             // Small delay to let file update, then refresh webview
             setTimeout(() => {
                 this._isUpdatingFromFile = false;
-                this.updateContent();
+                this.updateContent(true);
             }, 200);
         } catch (error) {
             this._isUpdatingFromFile = false;
@@ -586,7 +590,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
             // Small delay to let file update, then refresh webview
             setTimeout(() => {
                 this._isUpdatingFromFile = false;
-                this.updateContent();
+                this.updateContent(true);
             }, 200);
         } catch (error) {
             this._isUpdatingFromFile = false;
@@ -643,7 +647,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
             // Small delay to let file update, then refresh webview
             setTimeout(() => {
                 this._isUpdatingFromFile = false;
-                this.updateContent();
+                this.updateContent(true);
             }, 200);
         } catch (error) {
             this._isUpdatingFromFile = false;
@@ -651,7 +655,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
         }
     }
 
-    public updateContent() {
+    public updateContent(restoreFocus: boolean = false) {
         if (!this._view) {
             return;
         }
@@ -700,7 +704,16 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                 const testers = SettingsProvider.getTesters();
                 const tags = SettingsProvider.getTags();
                 const showStatusColumn = vscode.workspace.getConfiguration('testCaseViewer').get<boolean>('showStatusColumn', true);
-                this._view.webview.html = MarkdownTestCaseRenderer.render(testCase, documentUri, testers, tags, showStatusColumn);
+                
+                // Get focus info if we need to restore it
+                const focusInfo = restoreFocus ? this._focusedElementInfo : null;
+                
+                this._view.webview.html = MarkdownTestCaseRenderer.render(testCase, documentUri, testers, tags, showStatusColumn, focusInfo);
+                
+                // Clear focus info after using it
+                if (restoreFocus) {
+                    this._focusedElementInfo = null;
+                }
             } else {
                 this._view.webview.html = this._getEmptyHtml('Этот файл не является тест-кейсом в формате markdown');
             }

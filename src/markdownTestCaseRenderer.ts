@@ -11,7 +11,7 @@ export class MarkdownTestCaseRenderer {
             .replace(/'/g, '&#039;');
     }
 
-    public static render(testCase: MarkdownTestCase, documentUri?: string, testers?: string[], tags?: string[], showStatusColumn: boolean = true): string {
+    public static render(testCase: MarkdownTestCase, documentUri?: string, testers?: string[], tags?: string[], showStatusColumn: boolean = true, focusInfo?: { id: string; selectionStart?: number; selectionEnd?: number } | null): string {
         const testersList = testers || [];
         const availableTags = tags || [];
         
@@ -1600,6 +1600,25 @@ export class MarkdownTestCaseRenderer {
                     vscode.postMessage({ command: 'focusState', hasFocus: false });
                 }
             });
+            
+            // Restore focus after page load if focusInfo was provided
+            const savedFocusInfo = ${focusInfo ? JSON.stringify(focusInfo) : 'null'};
+            if (savedFocusInfo && savedFocusInfo.id) {
+                // Use setTimeout to ensure DOM is fully loaded
+                setTimeout(function() {
+                    const element = document.getElementById(savedFocusInfo.id);
+                    if (element) {
+                        element.focus();
+                        // Restore cursor position for input and textarea fields
+                        if ((element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') && savedFocusInfo.selectionStart !== undefined) {
+                            element.setSelectionRange(
+                                savedFocusInfo.selectionStart || 0,
+                                savedFocusInfo.selectionEnd !== undefined ? savedFocusInfo.selectionEnd : savedFocusInfo.selectionStart || 0
+                            );
+                        }
+                    }
+                }, 50);
+            }
 
             // Auto-resize textareas in table cells and update row height
             function autoResizeTextarea(textarea) {
@@ -1745,6 +1764,25 @@ export class MarkdownTestCaseRenderer {
                 element.addEventListener('blur', function() {
                     const field = this.getAttribute('data-field');
                     const value = this.value || this.textContent || '';
+                    
+                    // For Epic, Feature, Story fields, check if focus moved to another field
+                    // and save that focus info instead
+                    setTimeout(function() {
+                        const activeElement = document.activeElement;
+                        if (activeElement && (activeElement.id === 'test-case-epic' || activeElement.id === 'test-case-feature' || activeElement.id === 'test-case-story')) {
+                            const inputElement = activeElement;
+                            const focusInfo = {
+                                id: inputElement.id,
+                                selectionStart: inputElement.selectionStart !== undefined ? inputElement.selectionStart : undefined,
+                                selectionEnd: inputElement.selectionEnd !== undefined ? inputElement.selectionEnd : undefined
+                            };
+                            vscode.postMessage({
+                                command: 'saveFocusState',
+                                focusInfo: focusInfo
+                            });
+                        }
+                    }, 10);
+                    
                     vscode.postMessage({
                         command: 'updateField',
                         field: field,
@@ -1772,6 +1810,24 @@ export class MarkdownTestCaseRenderer {
                     const stepIndex = parseInt(this.getAttribute('data-step-index') || '0');
                     const field = this.getAttribute('data-step-field');
                     let value = this.value || '';
+                    
+                    // Save focus info for step fields (action, expectedResult) before update
+                    if (field === 'action' || field === 'expectedResult') {
+                        setTimeout(function() {
+                            const activeElement = document.activeElement;
+                            if (activeElement && activeElement.id && activeElement.id.startsWith('step-')) {
+                                const focusInfo = {
+                                    id: activeElement.id,
+                                    selectionStart: activeElement.selectionStart !== undefined ? activeElement.selectionStart : undefined,
+                                    selectionEnd: activeElement.selectionEnd !== undefined ? activeElement.selectionEnd : undefined
+                                };
+                                vscode.postMessage({
+                                    command: 'saveFocusState',
+                                    focusInfo: focusInfo
+                                });
+                            }
+                        }, 10);
+                    }
                     
                     // Для статуса: сохраняем причину из data-step-reason, если статус failed/skipped
                     if (field === 'status') {
@@ -3153,6 +3209,7 @@ export class MarkdownTestCaseRenderer {
                     <div class="steps-table-cell action-cell">
                         <textarea 
                             class="step-cell-editable" 
+                            id="step-${index}-action"
                             data-step-index="${index}"
                             data-step-field="action"
                             rows="1"
@@ -3161,6 +3218,7 @@ export class MarkdownTestCaseRenderer {
                     <div class="steps-table-cell expected-cell">
                         <textarea 
                             class="step-cell-editable" 
+                            id="step-${index}-expectedResult"
                             data-step-index="${index}"
                             data-step-field="expectedResult"
                             rows="1"
