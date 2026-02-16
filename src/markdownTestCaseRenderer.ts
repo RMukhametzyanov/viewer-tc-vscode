@@ -907,6 +907,7 @@ export class MarkdownTestCaseRenderer {
         .attachment-item {
             display: flex;
             align-items: center;
+            gap: 8px;
             font-size: 13px;
         }
 
@@ -914,10 +915,36 @@ export class MarkdownTestCaseRenderer {
             color: var(--vscode-textLink-foreground);
             text-decoration: none;
             cursor: pointer;
+            flex: 1;
         }
 
         .attachment-link:hover {
             text-decoration: underline;
+        }
+
+        .attachment-remove-btn {
+            background: transparent;
+            border: none;
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 2px;
+            transition: background-color 0.2s;
+            opacity: 0.7;
+            flex-shrink: 0;
+        }
+
+        .attachment-remove-btn:hover {
+            background-color: var(--vscode-inputValidation-errorBackground);
+            color: var(--vscode-inputValidation-errorForeground);
+            opacity: 1;
         }
 
         .viewer-attachments-row .attachments-add-btn {
@@ -2544,6 +2571,19 @@ export class MarkdownTestCaseRenderer {
                 });
             });
 
+            // Обработка удаления вложений
+            document.querySelectorAll('.attachment-remove-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const index = parseInt(this.getAttribute('data-attachment-index') || '0', 10);
+                    vscode.postMessage({
+                        command: 'removeAttachedDocument',
+                        index: index
+                    });
+                });
+            });
+
             // Обработка добавления файла
             const addAttachmentBtn = document.getElementById('attachments-add-btn');
             if (addAttachmentBtn) {
@@ -2987,6 +3027,7 @@ export class MarkdownTestCaseRenderer {
                     ${parsedDocuments.map((doc, index) => `
                         <div class="attachment-item" data-attachment-index="${index}">
                             <a href="#" class="attachment-link" data-relative-path="${this.escapeHtml(doc.relativePath)}">${this.escapeHtml(doc.displayName || 'Без названия')}</a>
+                            <button class="attachment-remove-btn" data-attachment-index="${index}" title="Удалить вложение">×</button>
                         </div>
                     `).join('')}
                 </div>

@@ -852,6 +852,45 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
             const testCase = MarkdownTestCaseParser.parse(content);
             
             if (testCase.attachedDocuments && testCase.attachedDocuments.length > index) {
+                // Получаем информацию о файле перед удалением из списка
+                const attachmentToRemove = testCase.attachedDocuments[index];
+                
+                // Парсим путь к файлу из markdown формата [Название](путь)
+                const match = attachmentToRemove.match(/\[([^\]]+)\]\(([^)]+)\)/);
+                const fileName = match ? match[1] : 'файл';
+                
+                // Запрашиваем подтверждение
+                const confirm = await vscode.window.showWarningMessage(
+                    `Вы уверены, что хотите удалить вложение "${fileName}"? Файл будет удален из папки _attachment.`,
+                    { modal: true },
+                    'Да',
+                    'Нет'
+                );
+                
+                if (confirm !== 'Да') {
+                    return;
+                }
+                
+                if (match && match[2]) {
+                    const relativePath = match[2];
+                    const testCaseFilePath = document.uri.fsPath;
+                    const testCaseDir = path.dirname(testCaseFilePath);
+                    
+                    // Вычисляем абсолютный путь к файлу
+                    const attachmentFilePath = path.resolve(testCaseDir, relativePath);
+                    
+                    // Удаляем физический файл, если он существует
+                    if (fs.existsSync(attachmentFilePath)) {
+                        try {
+                            fs.unlinkSync(attachmentFilePath);
+                        } catch (fileError) {
+                            // Если не удалось удалить файл, продолжаем удаление из markdown
+                            vscode.window.showWarningMessage(`Не удалось удалить файл: ${attachmentFilePath}. Ссылка будет удалена из тест-кейса.`);
+                        }
+                    }
+                }
+                
+                // Удаляем из списка вложений
                 testCase.attachedDocuments.splice(index, 1);
             }
 
