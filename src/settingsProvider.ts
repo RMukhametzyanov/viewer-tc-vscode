@@ -43,10 +43,8 @@ export class SettingsProvider {
                         context.workspaceState.update('configPath', selectedPath);
                         this._configPath = selectedPath;
                         await this._loadConfig(selectedPath);
-                        panel.webview.postMessage({
-                            command: 'configPathUpdated',
-                            path: selectedPath
-                        });
+                        // Update webview HTML with new data
+                        panel.webview.html = this._getHtmlForWebview(panel.webview, selectedPath);
                         // Notify sidebar to refresh
                         vscode.commands.executeCommand('testCaseViewer.refresh');
                     }
@@ -55,10 +53,8 @@ export class SettingsProvider {
                     context.workspaceState.update('configPath', undefined);
                     this._configPath = undefined;
                     this._testers = [];
-                    panel.webview.postMessage({
-                        command: 'configPathUpdated',
-                        path: ''
-                    });
+                    // Update webview HTML with new data
+                    panel.webview.html = this._getHtmlForWebview(panel.webview, '');
                     vscode.commands.executeCommand('testCaseViewer.refresh');
                     return;
                 case 'synchronizeTags':
@@ -120,9 +116,10 @@ export class SettingsProvider {
                 message: 'Сканирование файлов...'
             });
 
-            // Scan all JSON files in the repository
+            // Scan all JSON and Markdown files in the repository
             const tags = new Set<string>();
             await this._scanJsonFilesForTags(workspaceRoot, tags);
+            await this._scanMarkdownFilesForTags(workspaceRoot, tags);
 
             // Convert Set to sorted array
             const tagsArray = Array.from(tags).sort();
@@ -197,6 +194,64 @@ export class SettingsProvider {
                     }
                 } catch (error) {
                     // Skip files that can't be parsed as JSON
+                    continue;
+                }
+            }
+        }
+    }
+
+    private static async _scanMarkdownFilesForTags(rootPath: string, tagsSet: Set<string>): Promise<void> {
+        const files = fs.readdirSync(rootPath, { withFileTypes: true });
+
+        for (const file of files) {
+            const fullPath = path.join(rootPath, file.name);
+
+            // Skip node_modules, .git, and other common directories
+            if (file.isDirectory()) {
+                if (file.name === 'node_modules' || file.name === '.git' || file.name === 'out' || file.name === '.vscode') {
+                    continue;
+                }
+                await this._scanMarkdownFilesForTags(fullPath, tagsSet);
+            } else if (file.isFile() && (file.name.endsWith('.md') || file.name.endsWith('.markdown'))) {
+                try {
+                    const content = fs.readFileSync(fullPath, 'utf8');
+                    const lines = content.split('\n');
+
+                    let currentSection = '';
+                    let inTagsSection = false;
+
+                    // Find the "## Теги (tags)" section using similar logic to MarkdownTestCaseParser
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i].trim();
+
+                        // Check for headers
+                        if (line.startsWith('##')) {
+                            const headerText = line.replace(/^##\s*/, '').trim();
+                            currentSection = headerText;
+                            
+                            // Check if this is the tags section
+                            if (headerText === 'Теги (tags)' || headerText === 'Теги') {
+                                inTagsSection = true;
+                                continue;
+                            } else {
+                                // If we were in tags section and hit another header, stop processing tags
+                                if (inTagsSection) {
+                                    break;
+                                }
+                                inTagsSection = false;
+                                continue;
+                            }
+                        }
+
+                        // Process lines in tags section
+                        if (inTagsSection && line.length > 0) {
+                            // Parse tags (comma-separated) - same logic as MarkdownTestCaseParser
+                            const tags = line.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+                            tags.forEach(tag => tagsSet.add(tag));
+                        }
+                    }
+                } catch (error) {
+                    // Skip files that can't be read
                     continue;
                 }
             }
@@ -449,7 +504,7 @@ export class SettingsProvider {
     <div class="setting-item">
         <div class="setting-label">Теги</div>
         <div class="setting-description">
-            Синхронизировать теги из всех JSON файлов в репозитории и сохранить их в config.json
+            Синхронизировать теги из всех JSON и Markdown файлов в репозитории и сохранить их в config.json
         </div>
         <div class="setting-controls">
             <button id="sync-tags-btn">Синхронизировать теги</button>
@@ -479,18 +534,6 @@ export class SettingsProvider {
         
         window.addEventListener('message', event => {
             const message = event.data;
-            if (message.command === 'configPathUpdated') {
-                const pathInput = document.getElementById('config-path');
-                if (pathInput) {
-                    pathInput.value = message.path || '';
-                }
-                // Reload page to show updated testers list
-                if (message.path) {
-                    setTimeout(() => location.reload(), 100);
-                } else {
-                    location.reload();
-                }
-            }
             if (message.command === 'tagsSyncStatus') {
                 if (tagsSyncStatus) {
                     tagsSyncStatus.style.display = 'block';

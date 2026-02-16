@@ -744,6 +744,8 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
 
     private _getEmptyHtml(message?: string): string {
         const defaultMessage = 'Откройте markdown файл с тест-кейсом для просмотра';
+        const showStatusColumn = vscode.workspace.getConfiguration('testCaseViewer').get<boolean>('showStatusColumn', true);
+        
         return `
             <!DOCTYPE html>
             <html lang="ru">
@@ -752,25 +754,172 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Markdown Test Case Viewer</title>
                 <style>
+                    * {
+                        margin: 0;
+                        padding: 0;
+                        box-sizing: border-box;
+                    }
+                    
+                    html {
+                        height: 100%;
+                        overflow: auto;
+                    }
+                    
                     body {
                         font-family: var(--vscode-font-family);
-                        padding: 20px;
                         color: var(--vscode-foreground);
                         background-color: var(--vscode-editor-background);
+                        padding: 24px;
+                        line-height: 1.5;
+                        margin: 0;
+                        height: auto;
+                        overflow: visible;
+                    }
+                    
+                    .viewer-top-header {
+                        position: sticky;
+                        top: 0;
+                        background-color: var(--vscode-editor-background);
+                        padding: 12px 24px;
+                        margin: -24px -24px 24px -24px;
                         display: flex;
                         align-items: center;
-                        justify-content: center;
-                        min-height: 100vh;
-                        text-align: center;
+                        justify-content: flex-end;
+                        gap: 8px;
+                        z-index: 100;
+                        border-bottom: 1px solid var(--vscode-panel-border);
                     }
+
+                    .viewer-header-button {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: transparent;
+                        border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+                        color: var(--vscode-foreground);
+                        cursor: pointer;
+                        font-size: 13px;
+                        padding: 6px 12px;
+                        border-radius: 3px;
+                        transition: background-color 0.2s, border-color 0.2s;
+                        gap: 6px;
+                    }
+
+                    .viewer-header-button:hover {
+                        background-color: var(--vscode-list-hoverBackground);
+                        border-color: var(--vscode-focusBorder);
+                    }
+
+                    .viewer-header-button:active {
+                        background-color: var(--vscode-list-activeSelectionBackground);
+                    }
+
+                    .viewer-header-button.active {
+                        background-color: var(--vscode-button-background);
+                        color: var(--vscode-button-foreground);
+                        border-color: var(--vscode-button-background);
+                    }
+
+                    .viewer-header-button.active:hover {
+                        background-color: var(--vscode-button-hoverBackground);
+                    }
+
+                    .viewer-header-button-icon {
+                        font-size: 16px;
+                        line-height: 1;
+                    }
+                    
                     .empty-message {
                         color: var(--vscode-descriptionForeground);
                         font-size: 14px;
+                        text-align: center;
+                        padding: 40px 20px;
                     }
                 </style>
             </head>
             <body>
+                <div class="viewer-top-header">
+                    <button class="viewer-header-button" id="run-tests-button" title="Запустить прогон тестов">
+                        <span class="viewer-header-button-icon">▶</span>
+                        <span>Запуск тест-кейсов</span>
+                    </button>
+                    <button class="viewer-header-button" id="statistics-button" title="Открыть статистику">
+                        <span class="viewer-header-button-icon">📊</span>
+                        <span>Статистика</span>
+                    </button>
+                    <button class="viewer-header-button" id="settings-button" title="Открыть настройки">
+                        <span class="viewer-header-button-icon">⚙️</span>
+                        <span>Настройки</span>
+                    </button>
+                    <button class="viewer-header-button ${showStatusColumn ? 'active' : ''}" id="show-status-button" title="Показать/скрыть колонку статуса">
+                        <span class="viewer-header-button-icon">✓</span>
+                        <span>Показать статус</span>
+                    </button>
+                </div>
                 <div class="empty-message">${message || defaultMessage}</div>
+                <script>
+                    (function() {
+                        const vscode = acquireVsCodeApi();
+
+                        // Header button handlers
+                        const runTestsButton = document.getElementById('run-tests-button');
+                        const statisticsButton = document.getElementById('statistics-button');
+                        const settingsButton = document.getElementById('settings-button');
+                        const showStatusButton = document.getElementById('show-status-button');
+
+                        if (runTestsButton) {
+                            runTestsButton.addEventListener('click', function() {
+                                vscode.postMessage({
+                                    command: 'executeCommand',
+                                    commandId: 'testCaseViewer.createStandaloneHtml'
+                                });
+                            });
+                        }
+
+                        if (statisticsButton) {
+                            statisticsButton.addEventListener('click', function() {
+                                vscode.postMessage({
+                                    command: 'openStatistics'
+                                });
+                            });
+                        }
+
+                        if (settingsButton) {
+                            settingsButton.addEventListener('click', function() {
+                                vscode.postMessage({
+                                    command: 'executeCommand',
+                                    commandId: 'testCaseViewer.openSettings'
+                                });
+                            });
+                        }
+
+                        // Toggle status column visibility
+                        if (showStatusButton) {
+                            // Load saved state from localStorage
+                            const savedState = localStorage.getItem('showStatusColumn');
+                            let isStatusColumnVisible = savedState !== null ? savedState === 'true' : ${showStatusColumn ? 'true' : 'false'};
+                            
+                            // Update button state on load
+                            if (isStatusColumnVisible) {
+                                showStatusButton.classList.add('active');
+                            } else {
+                                showStatusButton.classList.remove('active');
+                            }
+                            
+                            // Toggle on button click
+                            showStatusButton.addEventListener('click', function() {
+                                isStatusColumnVisible = !isStatusColumnVisible;
+                                if (isStatusColumnVisible) {
+                                    showStatusButton.classList.add('active');
+                                } else {
+                                    showStatusButton.classList.remove('active');
+                                }
+                                // Save state to localStorage
+                                localStorage.setItem('showStatusColumn', isStatusColumnVisible.toString());
+                            });
+                        }
+                    })();
+                </script>
             </body>
             </html>
         `;
