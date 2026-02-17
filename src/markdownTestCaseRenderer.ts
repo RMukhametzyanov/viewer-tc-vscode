@@ -1449,6 +1449,14 @@ export class MarkdownTestCaseRenderer {
             <span class="viewer-header-button-icon">⚙️</span>
             <span>Настройки</span>
         </button>
+        <button class="viewer-header-button" id="generate-report-button" title="Сгенерировать отчет о прогоне">
+            <span class="viewer-header-button-icon">📄</span>
+            <span>Сгенерировать отчет о прогоне</span>
+        </button>
+        <button class="viewer-header-button" id="generate-allure-button" title="Сгенерировать Allure отчет">
+            <span class="viewer-header-button-icon">📊</span>
+            <span>Allure</span>
+        </button>
         <button class="viewer-header-button ${showStatusColumn ? 'active' : ''}" id="show-status-button" title="Показать/скрыть колонку статуса">
             <span class="viewer-header-button-icon">✓</span>
             <span>Показать статус</span>
@@ -1466,6 +1474,8 @@ export class MarkdownTestCaseRenderer {
             const runTestsButton = document.getElementById('run-tests-button');
             const statisticsButton = document.getElementById('statistics-button');
             const settingsButton = document.getElementById('settings-button');
+            const generateReportButton = document.getElementById('generate-report-button');
+            const generateAllureButton = document.getElementById('generate-allure-button');
             const showStatusButton = document.getElementById('show-status-button');
 
             if (runTestsButton) {
@@ -1490,6 +1500,22 @@ export class MarkdownTestCaseRenderer {
                     vscode.postMessage({
                         command: 'executeCommand',
                         commandId: 'testCaseViewer.openSettings'
+                    });
+                });
+            }
+
+            if (generateReportButton) {
+                generateReportButton.addEventListener('click', function() {
+                    vscode.postMessage({
+                        command: 'generateReport'
+                    });
+                });
+            }
+
+            if (generateAllureButton) {
+                generateAllureButton.addEventListener('click', function() {
+                    vscode.postMessage({
+                        command: 'generateAllure'
                     });
                 });
             }

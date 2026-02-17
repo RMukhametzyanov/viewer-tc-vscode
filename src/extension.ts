@@ -6,6 +6,8 @@ import { SettingsProvider } from './settingsProvider';
 import { TestCaseRunnerProvider } from './testCaseRunnerProvider';
 import { TestCaseTreeViewProvider, TestCaseTreeItem } from './testCaseTreeViewProvider';
 import { TestCaseStatisticsPanel } from './testCaseStatisticsPanel';
+import { generateHtmlReport } from './htmlReportGenerator';
+import { generateAllureReport } from './allureReportGenerator';
 
 function generateUUID(): string {
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -374,6 +376,82 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('testCaseViewer.showStatistics', () => {
             TestCaseStatisticsPanel.createOrShow(context);
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.openSidebar', async () => {
+            // Открываем боковую панель вьювера
+            // Используем команду для открытия view контейнера
+            try {
+                await vscode.commands.executeCommand('workbench.view.extension.testCaseViewer');
+            } catch (error) {
+                // Если команда не работает, пробуем альтернативный способ
+                await vscode.commands.executeCommand('workbench.view.testCaseViewer');
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.generateReport', async () => {
+            try {
+                // Получаем название проекта из настроек (если есть)
+                const config = vscode.workspace.getConfiguration('testCaseViewer');
+                const projectName = config.get<string>('projectName', '');
+                
+                // Показываем индикатор прогресса
+                await vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'Генерация отчета о прогоне',
+                    cancellable: false
+                }, async (progress) => {
+                    progress.report({ increment: 0, message: 'Загрузка тест-кейсов...' });
+                    
+                    const reportDir = await generateHtmlReport(undefined, projectName);
+                    
+                    if (reportDir) {
+                        progress.report({ increment: 100, message: 'Отчет сгенерирован' });
+                        
+                        vscode.window.showInformationMessage(
+                            `HTML отчет успешно сгенерирован в папке: ${path.basename(reportDir.fsPath)}`,
+                            'Открыть папку'
+                        ).then(selection => {
+                            if (selection === 'Открыть папку') {
+                                vscode.commands.executeCommand('revealFileInOS', reportDir);
+                            }
+                        });
+                    } else {
+                        vscode.window.showErrorMessage('Не удалось сгенерировать отчет');
+                    }
+                });
+            } catch (error) {
+                vscode.window.showErrorMessage(`Ошибка при генерации отчета: ${error}`);
+            }
+        })
+    );
+
+    context.subscriptions.push(
+        vscode.commands.registerCommand('testCaseViewer.generateAllure', async () => {
+            try {
+                // Показываем индикатор прогресса
+                await vscode.window.withProgress({
+                    location: vscode.ProgressLocation.Notification,
+                    title: 'Генерация Allure отчета',
+                    cancellable: false
+                }, async (progress) => {
+                    progress.report({ increment: 0, message: 'Загрузка тест-кейсов...' });
+                    
+                    const allureDir = await generateAllureReport();
+                    
+                    if (allureDir) {
+                        progress.report({ increment: 100, message: 'Allure JSON файлы сгенерированы' });
+                    } else {
+                        vscode.window.showErrorMessage('Не удалось сгенерировать Allure отчет');
+                    }
+                });
+            } catch (error) {
+                vscode.window.showErrorMessage(`Ошибка при генерации Allure отчета: ${error}`);
+            }
         })
     );
 
