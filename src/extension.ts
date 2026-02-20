@@ -395,6 +395,46 @@ export async function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('testCaseViewer.generateReport', async () => {
             try {
+                // Получаем текущую ветку Git
+                const workspaceFolders = vscode.workspace.workspaceFolders;
+                let branch = 'unknown';
+                
+                if (workspaceFolders && workspaceFolders.length > 0) {
+                    try {
+                        const gitExtension = vscode.extensions.getExtension('vscode.git');
+                        if (gitExtension && gitExtension.isActive) {
+                            const git = gitExtension.exports.getAPI(1);
+                            const repository = git.getRepository(workspaceFolders[0].uri);
+                            if (repository) {
+                                branch = repository.state.HEAD?.name || 'unknown';
+                            }
+                        }
+                    } catch (e) {
+                        // Fallback к команде git
+                        try {
+                            const { execSync } = require('child_process');
+                            branch = execSync('git branch --show-current', { 
+                                cwd: workspaceFolders[0].uri.fsPath,
+                                encoding: 'utf8'
+                            }).trim() || 'unknown';
+                        } catch (e) {
+                            branch = 'unknown';
+                        }
+                    }
+                }
+                
+                // Показываем модальное окно с подтверждением (принудительно открывается)
+                const confirmed = await vscode.window.showWarningMessage(
+                    `Сгенерировать отчет о прогоне на ветке: ${branch}?`,
+                    { modal: true },
+                    'Да',
+                    'Нет'
+                );
+                
+                if (confirmed !== 'Да') {
+                    return; // Пользователь отменил
+                }
+                
                 // Получаем название проекта из настроек (если есть)
                 const config = vscode.workspace.getConfiguration('testCaseViewer');
                 const projectName = config.get<string>('projectName', '');

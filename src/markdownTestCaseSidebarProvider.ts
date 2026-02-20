@@ -100,6 +100,10 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                     await this._context.globalState.update('descriptionCollapsed', message.descriptionCollapsed);
                     await this._context.globalState.update('preconditionsCollapsed', message.preconditionsCollapsed);
                     return;
+                case 'refresh':
+                    // Принудительное обновление и синхронизация с файлом
+                    await this._forceRefresh();
+                    return;
             }
         });
 
@@ -748,6 +752,40 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
         }
     }
 
+    private async _forceRefresh() {
+        // Сбрасываем флаги, чтобы принудительно обновить содержимое
+        this._isUpdatingFromFile = false;
+        this._lastUpdateTime = 0;
+        
+        // Перечитываем документ из файла, если он открыт
+        const activeEditor = vscode.window.activeTextEditor;
+        if (activeEditor) {
+            try {
+                const document = activeEditor.document;
+                
+                // Если документ был изменен, но не сохранен, предлагаем сохранить
+                if (document.isDirty) {
+                    await document.save();
+                }
+                
+                // Принудительно перечитываем документ с диска
+                // Открываем документ заново, чтобы получить актуальное содержимое
+                const documentUri = document.uri;
+                const freshDocument = await vscode.workspace.openTextDocument(documentUri);
+                
+                // Небольшая задержка для гарантии, что файл обновлен
+                await new Promise(resolve => setTimeout(resolve, 50));
+            } catch (error) {
+                // Игнорируем ошибки, продолжаем обновление с текущим содержимым
+                console.warn('Could not reload document before refresh:', error);
+            }
+        }
+        
+        // Принудительно обновляем содержимое панели
+        // Вызываем напрямую, минуя все проверки на isUserEditing и _isUpdatingFromFile
+        this.updateContent(false);
+    }
+
     private _getEmptyHtml(message?: string): string {
         const defaultMessage = 'Откройте markdown файл с тест-кейсом для просмотра';
         const showStatusColumn = vscode.workspace.getConfiguration('testCaseViewer').get<boolean>('showStatusColumn', true);
@@ -865,6 +903,10 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                         <span class="viewer-header-button-icon">📊</span>
                         <span>Allure</span>
                     </button>
+                    <button class="viewer-header-button" id="refresh-button" title="Принудительно обновить и синхронизировать с файлом">
+                        <span class="viewer-header-button-icon">🔄</span>
+                        <span>Обновить</span>
+                    </button>
                     <button class="viewer-header-button ${showStatusColumn ? 'active' : ''}" id="show-status-button" title="Показать/скрыть колонку статуса">
                         <span class="viewer-header-button-icon">✓</span>
                         <span>Показать статус</span>
@@ -881,6 +923,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                         const settingsButton = document.getElementById('settings-button');
                         const generateReportButton = document.getElementById('generate-report-button');
                         const generateAllureButton = document.getElementById('generate-allure-button');
+                        const refreshButton = document.getElementById('refresh-button');
                         const showStatusButton = document.getElementById('show-status-button');
 
                         if (runTestsButton) {
@@ -921,6 +964,14 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                             generateAllureButton.addEventListener('click', function() {
                                 vscode.postMessage({
                                     command: 'generateAllure'
+                                });
+                            });
+                        }
+
+                        if (refreshButton) {
+                            refreshButton.addEventListener('click', function() {
+                                vscode.postMessage({
+                                    command: 'refresh'
                                 });
                             });
                         }

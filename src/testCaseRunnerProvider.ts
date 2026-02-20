@@ -4045,6 +4045,32 @@ export class TestCaseRunnerProvider {
     }
 
     /**
+     * Получить список всех веток Git
+     */
+    private async getAllBranches(): Promise<string[]> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return [];
+        }
+
+        try {
+            const { execSync } = require('child_process');
+            const branches = execSync('git branch -a', { 
+                cwd: workspaceFolders[0].uri.fsPath,
+                encoding: 'utf8'
+            }).trim().split('\n');
+            
+            return branches
+                .map((b: string) => b.trim().replace(/^\*\s*/, '').replace(/^remotes\/[^\/]+\//, ''))
+                .filter((b: string) => b && !b.startsWith('HEAD'))
+                .filter((v: string, i: number, a: string[]) => a.indexOf(v) === i) // Уникальные значения
+                .sort();
+        } catch (e) {
+            return [];
+        }
+    }
+
+    /**
      * Создать автономный HTML файл для браузера
      */
     async createStandaloneHtml() {
@@ -4054,15 +4080,19 @@ export class TestCaseRunnerProvider {
             return;
         }
 
-        // 1. Проверка ветки
+        // 1. Получаем текущую ветку
         const branch = await this.getCurrentBranch();
-        const confirmed = await vscode.window.showInformationMessage(
-            `Создать HTML файл раннера на ветке: ${branch}?`,
-            'Да', 'Нет'
+        
+        // 2. Показываем модальное окно с подтверждением (принудительно открывается)
+        const confirmed = await vscode.window.showWarningMessage(
+            `Запустить прогон тест-кейсов на ветке: ${branch}?`,
+            { modal: true },
+            'Да',
+            'Нет'
         );
         
         if (confirmed !== 'Да') {
-            return;
+            return; // Пользователь отменил
         }
 
         // 2. Сканирование файлов и запуск сервера

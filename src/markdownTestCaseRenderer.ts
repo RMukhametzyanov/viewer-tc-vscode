@@ -1457,6 +1457,10 @@ export class MarkdownTestCaseRenderer {
             <span class="viewer-header-button-icon">📊</span>
             <span>Allure</span>
         </button>
+        <button class="viewer-header-button" id="refresh-button" title="Принудительно обновить и синхронизировать с файлом">
+            <span class="viewer-header-button-icon">🔄</span>
+            <span>Обновить</span>
+        </button>
         <button class="viewer-header-button ${showStatusColumn ? 'active' : ''}" id="show-status-button" title="Показать/скрыть колонку статуса">
             <span class="viewer-header-button-icon">✓</span>
             <span>Показать статус</span>
@@ -1476,6 +1480,7 @@ export class MarkdownTestCaseRenderer {
             const settingsButton = document.getElementById('settings-button');
             const generateReportButton = document.getElementById('generate-report-button');
             const generateAllureButton = document.getElementById('generate-allure-button');
+            const refreshButton = document.getElementById('refresh-button');
             const showStatusButton = document.getElementById('show-status-button');
 
             if (runTestsButton) {
@@ -1516,6 +1521,14 @@ export class MarkdownTestCaseRenderer {
                 generateAllureButton.addEventListener('click', function() {
                     vscode.postMessage({
                         command: 'generateAllure'
+                    });
+                });
+            }
+
+            if (refreshButton) {
+                refreshButton.addEventListener('click', function() {
+                    vscode.postMessage({
+                        command: 'refresh'
                     });
                 });
             }
