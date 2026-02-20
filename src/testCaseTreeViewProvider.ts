@@ -407,7 +407,7 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
             return;
         }
         
-        const files = await vscode.workspace.findFiles('**/*.md');
+        const workspacePath = workspaceFolders[0].uri.fsPath;
         const tree = new Map<string, TestCaseNode>();
         const rootNode: TestCaseNode = {
             type: 'folder',
@@ -416,6 +416,12 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
             children: []
         };
         tree.set('', rootNode);
+        
+        // Сначала сканируем все директории в workspace
+        await this.scanDirectories(workspacePath, '', rootNode, tree);
+        
+        // Затем обрабатываем все .md файлы
+        const files = await vscode.workspace.findFiles('**/*.md');
         
         for (const file of files) {
             try {
@@ -445,7 +451,7 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
                         );
                         
                         if (!folderNode) {
-                            // Создаем новую папку
+                            // Создаем новую папку (на случай, если она не была найдена при сканировании)
                             folderNode = {
                                 type: 'folder',
                                 name: folder,
@@ -498,6 +504,65 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
         sortNode(rootNode);
         
         this._testCases = tree;
+    }
+    
+    private async scanDirectories(
+        workspacePath: string,
+        relativePath: string,
+        parentNode: TestCaseNode,
+        tree: Map<string, TestCaseNode>
+    ): Promise<void> {
+        try {
+            const fullPath = relativePath ? path.join(workspacePath, relativePath) : workspacePath;
+            const entries = await vscode.workspace.fs.readDirectory(vscode.Uri.file(fullPath));
+            
+            // Список папок, которые нужно игнорировать
+            const ignoredFolders = new Set([
+                'node_modules',
+                '.git',
+                '.vscode',
+                '.vs',
+                'out',
+                'dist',
+                'build',
+                '.idea',
+                '.settings'
+            ]);
+            
+            for (const [name, type] of entries) {
+                if (type === vscode.FileType.Directory) {
+                    // Пропускаем игнорируемые папки
+                    if (ignoredFolders.has(name)) {
+                        continue;
+                    }
+                    
+                    const folderPath = relativePath ? `${relativePath}/${name}` : name;
+                    
+                    // Проверяем, не существует ли уже эта папка
+                    let folderNode = parentNode.children.find(
+                        child => child.type === 'folder' && child.name === name
+                    );
+                    
+                    if (!folderNode) {
+                        // Создаем новую папку
+                        folderNode = {
+                            type: 'folder',
+                            name: name,
+                            path: folderPath,
+                            children: []
+                        };
+                        parentNode.children.push(folderNode);
+                        tree.set(folderPath, folderNode);
+                    }
+                    
+                    // Рекурсивно сканируем подпапки
+                    await this.scanDirectories(workspacePath, folderPath, folderNode, tree);
+                }
+            }
+        } catch (error) {
+            // Игнорируем ошибки доступа к директориям (например, системные папки)
+            console.log(`Error scanning directory ${relativePath}: ${error}`);
+        }
     }
     
     private async buildEpicFeatureStoryTree(): Promise<void> {
