@@ -18,7 +18,6 @@ interface TestCase {
     environment: string;
     browser: string;
     owner: string;
-    author: string;
     reviewer: string;
     testCaseId: string;
     issueLinks: string;

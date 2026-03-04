@@ -18,7 +18,6 @@ interface TestCase {
     environment: string;
     browser: string;
     owner: string;
-    author: string;
     reviewer: string;
     testCaseId: string;
     issueLinks: string;
@@ -177,7 +176,6 @@ export class TestCaseEditorProvider implements vscode.CustomTextEditorProvider {
                 id: this.generateReviewId(),
                 stepId: stepId,
                 stepNumber: stepNumber,
-                author: currentUser,
                 createdAt: Date.now(),
                 comment: comment,
                 status: 'open' as const

@@ -269,8 +269,6 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                 testCase.metadata.testType = value;
             } else if (field === 'owner') {
                 testCase.metadata.owner = value;
-            } else if (field === 'author') {
-                testCase.metadata.author = value;
             }
 
             // Serialize back to markdown

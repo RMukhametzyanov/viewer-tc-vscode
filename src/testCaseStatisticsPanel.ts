@@ -73,13 +73,6 @@ export class TestCaseStatisticsPanel {
             }))
             .sort((a, b) => a.label.localeCompare(b.label));
 
-        const authorData = Object.entries(statistics.byAuthor)
-            .map(([label, value]) => ({
-                label: label || 'Не указан',
-                value: value as number
-            }))
-            .sort((a, b) => a.label.localeCompare(b.label));
-
         const ownerData = Object.entries(statistics.byOwner)
             .map(([label, value]) => ({
                 label: label || 'Не указан',
@@ -407,11 +400,7 @@ export class TestCaseStatisticsPanel {
                 <div class="stat-card-value">${statistics.total}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-card-label">Уникальных авторов</div>
-                <div class="stat-card-value">${Object.keys(statistics.byAuthor).length}</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-card-label">Уникальных владельцев</div>
+                <div class="stat-card-label">Уникальных исполнителей</div>
                 <div class="stat-card-value">${Object.keys(statistics.byOwner).length}</div>
             </div>
             <div class="stat-card">
@@ -424,16 +413,7 @@ export class TestCaseStatisticsPanel {
             <div class="filters-title">Фильтры</div>
             <div class="filters-grid">
                 <div class="filter-group">
-                    <label class="filter-label">Автор</label>
-                    <select class="filter-select" id="filter-author">
-                        <option value="">Все</option>
-                        ${Object.keys(statistics.byAuthor).map(author => 
-                            `<option value="${this.escapeHtml(author)}" ${filters?.author === author ? 'selected' : ''}>${this.escapeHtml(author || 'Не указан')}</option>`
-                        ).join('')}
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label class="filter-label">Владелец</label>
+                    <label class="filter-label">Исполнитель</label>
                     <select class="filter-select" id="filter-owner">
                         <option value="">Все</option>
                         ${Object.keys(statistics.byOwner).map(owner => 
@@ -471,9 +451,9 @@ export class TestCaseStatisticsPanel {
             </div>
             
             <div class="chart-card">
-                <div class="chart-title">Распределение по авторам</div>
+                <div class="chart-title">Распределение по исполнителям</div>
                 <div class="chart-container">
-                    ${authorData.length > 0 ? this.renderBarChart(authorData, colors) : '<div class="empty-state">Нет данных</div>'}
+                    ${ownerData.length > 0 ? this.renderBarChart(ownerData, colors) : '<div class="empty-state">Нет данных</div>'}
                 </div>
             </div>
             
@@ -510,7 +490,6 @@ export class TestCaseStatisticsPanel {
                 clearTimeout(filterTimeout);
                 filterTimeout = setTimeout(() => {
                     const filters = {
-                        author: document.getElementById('filter-author').value || undefined,
                         owner: document.getElementById('filter-owner').value || undefined,
                         status: document.getElementById('filter-status').value || undefined,
                         testType: document.getElementById('filter-test-type').value || undefined

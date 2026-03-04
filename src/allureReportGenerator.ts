@@ -153,9 +153,9 @@ function convertTestCaseToAllureResult(
         labels.push({ name: 'owner', value: testCase.metadata.owner });
     }
     
-    // Добавляем author
-    if (testCase.metadata.author) {
-        labels.push({ name: 'as_id', value: testCase.metadata.author });
+    // Добавляем owner (исполнитель) как as_id
+    if (testCase.metadata.owner) {
+        labels.push({ name: 'as_id', value: testCase.metadata.owner });
     }
     
     // Добавляем test type

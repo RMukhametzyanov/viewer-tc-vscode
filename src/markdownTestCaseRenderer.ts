@@ -2984,21 +2984,6 @@ export class MarkdownTestCaseRenderer {
                         <span>${this.escapeHtml(testCase.metadata.owner || '')}</span>
                         `}
                     </div>
-                    <div class="viewer-meta-item">
-                        <span class="viewer-meta-label">Автор:</span>
-                        ${testers.length > 0 ? `
-                        <select 
-                            class="viewer-meta-select" 
-                            id="test-case-author" 
-                            data-field="author"
-                        >
-                            <option value="">-- Выберите --</option>
-                            ${testers.map(tester => `<option value="${this.escapeHtml(tester)}" ${testCase.metadata.author === tester ? 'selected' : ''}>${this.escapeHtml(tester)}</option>`).join('')}
-                        </select>
-                        ` : `
-                        <span>${this.escapeHtml(testCase.metadata.author || '')}</span>
-                        `}
-                    </div>
                 </div>
                 <div class="viewer-tags-row">
                     <span class="viewer-meta-label">Теги:</span>

@@ -593,7 +593,6 @@ function updateTreeViewTitle(treeView: vscode.TreeView<TestCaseTreeItem>, treePr
 
 async function showQuickPickFilters(treeProvider: TestCaseTreeViewProvider, treeView: vscode.TreeView<TestCaseTreeItem>): Promise<void> {
     const fieldLabels: { [key: string]: string } = {
-        author: 'Автор',
         owner: 'Владелец',
         reviewer: 'Ревьювер',
         testType: 'Тип теста',
@@ -730,7 +729,7 @@ async function showQuickPickFilters(treeProvider: TestCaseTreeViewProvider, tree
             values = await treeProvider.getUniqueTags();
         } else {
             // Используем тип из фильтров провайдера
-            type FilterKey = 'author' | 'owner' | 'reviewer' | 'testType' | 'status' | 'epic' | 'feature' | 'story';
+            type FilterKey = 'owner' | 'reviewer' | 'testType' | 'status' | 'epic' | 'feature' | 'story';
             values = await treeProvider.getUniqueValues(selectedFieldKey as FilterKey);
         }
         
@@ -805,7 +804,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
     const currentFilters = treeProvider.getFilters();
 
     // Получаем уникальные значения для фильтров
-    const authors = await treeProvider.getUniqueValues('author');
     const owners = await treeProvider.getUniqueValues('owner');
     const testTypes = await treeProvider.getUniqueValues('testType');
     const statuses = await treeProvider.getUniqueValues('status');
@@ -871,13 +869,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
 </head>
 <body>
     <div class="filter-group">
-        <label class="filter-label">Автор:</label>
-        <select class="filter-select" id="filter-author">
-            <option value="">Все</option>
-            ${authors.map(a => `<option value="${escapeHtml(a)}" ${currentFilters.author === a ? 'selected' : ''}>${escapeHtml(a)}</option>`).join('')}
-        </select>
-    </div>
-    <div class="filter-group">
         <label class="filter-label">Исполнитель:</label>
         <select class="filter-select" id="filter-owner">
             <option value="">Все</option>
@@ -939,7 +930,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
     <script>
         const vscode = acquireVsCodeApi();
         
-        const authorSelect = document.getElementById('filter-author');
         const ownerSelect = document.getElementById('filter-owner');
         const testTypeSelect = document.getElementById('filter-test-type');
         const statusSelect = document.getElementById('filter-status');
@@ -952,7 +942,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
         
         function applyFilters() {
             const filters = {
-                author: authorSelect.value || undefined,
                 owner: ownerSelect.value || undefined,
                 testType: testTypeSelect.value || undefined,
                 status: statusSelect.value || undefined,
@@ -969,7 +958,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
             });
         }
         
-        authorSelect.addEventListener('change', applyFilters);
         ownerSelect.addEventListener('change', applyFilters);
         testTypeSelect.addEventListener('change', applyFilters);
         statusSelect.addEventListener('change', applyFilters);
@@ -980,7 +968,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
         commentStatusSelect.addEventListener('change', applyFilters);
         
         resetBtn.addEventListener('click', () => {
-            authorSelect.value = '';
             ownerSelect.value = '';
             testTypeSelect.value = '';
             statusSelect.value = '';

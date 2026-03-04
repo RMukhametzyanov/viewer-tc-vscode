@@ -3,11 +3,6 @@
   "displayName": "Test Case Viewer",
   "description": "Просмотр тест-кейсов в удобном формате",
   "version": "0.0.1",
-  "publisher": "RMukhametzyanov",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/RMukhametzyanov/vscode_test_viewer.git"
-  },
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -98,15 +93,6 @@
         "command": "testCaseViewer.toggleTreeMode",
         "title": "Переключить режим отображения",
         "icon": "$(list-tree)"
-      },
-      {
-        "command": "testCaseViewer.openSidebar",
-        "title": "Открыть Test Case Viewer"
-      },
-      {
-        "command": "testCaseViewer.generateReport",
-        "title": "Сгенерировать отчет о прогоне",
-        "icon": "$(file-pdf)"
       }
     ],
     "menus": {
@@ -127,11 +113,6 @@
           "command": "testCaseViewer.createNewTestCase",
           "group": "file",
           "when": "explorerViewletVisible && filesExplorerFocus && !explorerResourceIsRoot && !explorerResourceReadonly"
-        },
-        {
-          "command": "testCaseViewer.openSidebar",
-          "group": "navigation",
-          "when": "resourceExtname == .md"
         }
       ],
       "view/title": [
@@ -188,9 +169,7 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "package": "vsce package",
-    "package:patch": "vsce package --out test-case-viewer.vsix"
+    "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
     "@types/vscode": "^1.74.0",

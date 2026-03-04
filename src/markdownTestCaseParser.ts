@@ -8,7 +8,6 @@ export interface MarkdownTestCase {
     title: string;
     metadata: {
         id?: string;
-        author?: string;
         owner?: string;
         status?: string;
         testType?: string;
@@ -156,8 +155,6 @@ export class MarkdownTestCaseParser {
                     
                     if (field === 'ID') {
                         result.metadata.id = value;
-                    } else if (field === 'Автор') {
-                        result.metadata.author = value;
                     } else if (field === 'Исполнитель' || field === 'Владелец') {
                         result.metadata.owner = value;
                     } else if (field === 'Статус') {
@@ -309,7 +306,6 @@ export class MarkdownTestCaseParser {
         lines.push('| Поле | Значение |');
         lines.push('|------|----------|');
         lines.push(`| **ID** | ${testCase.metadata.id || ''} |`);
-        lines.push(`| **Автор** | ${testCase.metadata.author || ''} |`);
         lines.push(`| **Исполнитель** | ${testCase.metadata.owner || ''} |`);
         lines.push(`| **Статус** | ${testCase.metadata.status || ''} |`);
         lines.push(`| **Тип теста** | ${testCase.metadata.testType || ''} |`);

@@ -14,7 +14,6 @@ interface TestCase {
     environment: string;
     browser: string;
     owner: string;
-    author: string;
     reviewer: string;
     testCaseId: string;
     issueLinks: string;
@@ -1583,21 +1582,6 @@ export class TestCaseRenderer {
                         `}
                     </div>
                     <div class="viewer-meta-item">
-                        <span class="viewer-meta-label">Автор:</span>
-                        ${testers && testers.length > 0 ? `
-                        <select 
-                            class="viewer-meta-select" 
-                            id="test-case-author" 
-                            data-field="author"
-                        >
-                            <option value="">-- Выберите --</option>
-                            ${testers.map(tester => `<option value="${this.escapeHtml(tester)}" ${testCase.author === tester ? 'selected' : ''}>${this.escapeHtml(tester)}</option>`).join('')}
-                        </select>
-                        ` : `
-                        <span>${this.escapeHtml(testCase.author || '')}</span>
-                        `}
-                    </div>
-                    <div class="viewer-meta-item">
                         <span class="viewer-meta-label">Ревьювер:</span>
                         ${testers && testers.length > 0 ? `
                         <select 
@@ -1772,8 +1756,8 @@ export class TestCaseRenderer {
                 });
             }
             
-            // Handle owner, author, reviewer dropdowns
-            const testerSelects = document.querySelectorAll('#test-case-owner, #test-case-author, #test-case-reviewer');
+            // Handle owner, reviewer dropdowns
+            const testerSelects = document.querySelectorAll('#test-case-owner, #test-case-reviewer');
             testerSelects.forEach(select => {
                 let isUpdating = false;
                 

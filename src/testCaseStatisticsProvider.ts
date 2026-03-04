@@ -5,7 +5,6 @@ import { MarkdownTestCaseParser } from './markdownTestCaseParser';
 interface TestCaseData {
     id: string;
     name: string;
-    author: string;
     owner: string;
     reviewer: string;
     status: string;
@@ -19,7 +18,6 @@ interface TestCaseData {
 
 interface Statistics {
     total: number;
-    byAuthor: { [key: string]: number };
     byOwner: { [key: string]: number };
     byStatus: { [key: string]: number };
     byTestType: { [key: string]: number };
@@ -35,7 +33,6 @@ export class TestCaseStatisticsProvider {
     public static readonly onDidChangeStatistics = this._onDidChangeStatistics.event;
 
     public static async collectStatistics(filters?: {
-        author?: string;
         owner?: string;
         status?: string;
         testType?: string;
@@ -65,7 +62,6 @@ export class TestCaseStatisticsProvider {
                     const testCase: TestCaseData = {
                         id: mdCase.metadata.id || '',
                         name: mdCase.title || path.basename(file.fsPath, '.md'),
-                        author: mdCase.metadata.author || '',
                         owner: mdCase.metadata.owner || '',
                         reviewer: '', // reviewer не хранится в metadata
                         status: mdCase.metadata.status || '',
@@ -79,7 +75,6 @@ export class TestCaseStatisticsProvider {
 
                     // Применяем фильтры
                     if (filters) {
-                        if (filters.author && testCase.author !== filters.author) continue;
                         if (filters.owner && testCase.owner !== filters.owner) continue;
                         if (filters.status && testCase.status !== filters.status) continue;
                         if (filters.testType && testCase.testType !== filters.testType) continue;
@@ -103,7 +98,6 @@ export class TestCaseStatisticsProvider {
         // Собираем статистику
         const statistics: Statistics = {
             total: testCases.length,
-            byAuthor: {},
             byOwner: {},
             byStatus: {},
             byTestType: {},
@@ -114,12 +108,7 @@ export class TestCaseStatisticsProvider {
         };
 
         for (const testCase of testCases) {
-            // По авторам
-            if (testCase.author) {
-                statistics.byAuthor[testCase.author] = (statistics.byAuthor[testCase.author] || 0) + 1;
-            }
-
-            // По владельцам
+            // По владельцам (исполнителям)
             if (testCase.owner) {
                 statistics.byOwner[testCase.owner] = (statistics.byOwner[testCase.owner] || 0) + 1;
             }
@@ -158,7 +147,6 @@ export class TestCaseStatisticsProvider {
     public static getEmptyStatistics(): Statistics {
         return {
             total: 0,
-            byAuthor: {},
             byOwner: {},
             byStatus: {},
             byTestType: {},

@@ -19,7 +19,6 @@ interface TestCaseData {
     environment: string;
     browser: string;
     owner: string;
-    author: string;
     reviewer: string;
     testCaseId: string;
     issueLinks: string;
@@ -93,7 +92,6 @@ export class TestCaseTreeItem extends vscode.TreeItem {
             // Добавляем tooltip с информацией о тест-кейсе
             if (node.data) {
                 const tooltipParts: string[] = [];
-                if (node.data.author) tooltipParts.push(`Автор: ${node.data.author}`);
                 if (node.data.owner) tooltipParts.push(`Владелец: ${node.data.owner}`);
                 if (node.data.status) tooltipParts.push(`Статус: ${node.data.status}`);
                 if (node.data.testType) tooltipParts.push(`Тип: ${node.data.testType}`);
@@ -171,7 +169,6 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
     private _extensionUri: vscode.Uri;
     private _treeMode: 'file' | 'epic-feature-story' = 'file';
     private _filters: {
-        author?: string;
         owner?: string;
         reviewer?: string;
         testType?: string;
@@ -310,9 +307,6 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
         
         const data = node.data;
         
-        if (this._filters.author && data.author !== this._filters.author) {
-            return false;
-        }
         if (this._filters.owner && data.owner !== this._filters.owner) {
             return false;
         }
@@ -379,7 +373,6 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
     
     private hasActiveFilters(): boolean {
         return !!(
-            this._filters.author ||
             this._filters.owner ||
             this._filters.reviewer ||
             this._filters.testType ||
@@ -895,7 +888,6 @@ export class TestCaseTreeViewProvider implements vscode.TreeDataProvider<TestCas
             environment: '',
             browser: '',
             owner: mdCase.metadata.owner || '',
-            author: mdCase.metadata.author || '',
             reviewer: '',
             testCaseId: mdCase.metadata.id || '',
             issueLinks: mdCase.links?.join('\n') || '',

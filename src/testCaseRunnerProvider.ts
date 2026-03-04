@@ -20,7 +20,6 @@ interface TestCase {
     environment: string;
     browser: string;
     owner: string;
-    author: string;
     reviewer: string;
     testCaseId: string;
     issueLinks: string;
@@ -150,6 +149,63 @@ export class TestCaseRunnerProvider {
 
         const parsedUrl = require('url').parse(req.url, true);
 
+        if (req.method === 'POST' && parsedUrl.pathname === '/api/sync') {
+            // git pull + пересканирование тест-кейсов, возврат обновлённых данных для дерева
+            (async () => {
+                try {
+                    const workspacePath = this._workspacePath;
+                    if (!workspacePath) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: false, error: 'Workspace not set' }));
+                        return;
+                    }
+                    const { execSync } = require('child_process');
+                    execSync('git pull', { cwd: workspacePath, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+                    await this.scanTestCases();
+                    const rootNode = this._testCases.get('');
+                    if (!rootNode) {
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({
+                            success: true,
+                            testCasesData: {},
+                            filePathMap: {},
+                            treeHtml: '<div>Тест-кейсы не найдены</div>'
+                        }));
+                        return;
+                    }
+                    const workspaceFolders = vscode.workspace.workspaceFolders;
+                    const workspacePathForPaths = workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : workspacePath;
+                    const testCasesData: any = {};
+                    const filePathMap: any = {};
+                    const collectTestCases = (node: TestCaseNode) => {
+                        if (node.type === 'testcase' && node.filePath && node.data) {
+                            const relativePath = node.relativePath || path.relative(workspacePathForPaths, node.filePath);
+                            testCasesData[relativePath] = node.data;
+                            filePathMap[relativePath] = node.filePath;
+                        }
+                        node.children.forEach((child: TestCaseNode) => collectTestCases(child));
+                    };
+                    collectTestCases(rootNode);
+                    const treeHtml = this.renderTreeHtml(rootNode.children);
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                        success: true,
+                        testCasesData,
+                        filePathMap,
+                        treeHtml
+                    }));
+                } catch (error: any) {
+                    console.error('Sync error:', error);
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                        success: false,
+                        error: error.message || String(error)
+                    }));
+                }
+            })();
+            return;
+        }
+
         if (req.method === 'GET' && parsedUrl.pathname === '/api/status') {
             // Проверка статуса сервера
             res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -240,7 +296,6 @@ export class TestCaseRunnerProvider {
                             title: content.name || '',
                             metadata: {
                                 id: content.id || content.testCaseId || '',
-                                author: content.author || '',
                                 owner: content.owner || '',
                                 status: content.status || '',
                                 testType: content.testType || ''
@@ -375,7 +430,6 @@ export class TestCaseRunnerProvider {
             environment: '',
             browser: '',
             owner: mdCase.metadata.owner || '',
-            author: mdCase.metadata.author || '',
             reviewer: '',
             testCaseId: mdCase.metadata.id || '',
             issueLinks: mdCase.links?.join('\n') || '',
@@ -546,48 +600,56 @@ export class TestCaseRunnerProvider {
             // Для папки проверяем всех детей рекурсивно
             let hasFailed = false;
             let allPassed = true;
+            let allSkipped = true;
             let hasAnyChild = false;
             
             const checkNode = (n: TestCaseNode) => {
                 if (n.type === 'testcase') {
+                    hasAnyChild = true;
                     const status = this.calculateNodeStatus(n);
                     if (status === 'failed') {
                         hasFailed = true;
                         allPassed = false;
-                        hasAnyChild = true;
+                        allSkipped = false;
                     } else if (status === 'passed') {
-                        // Для passed нужно проверить, что ВСЕ шаги passed
-                        hasAnyChild = true;
-                    } else if (status === null || status === 'skipped') {
-                        // Если тест-кейс без статуса или skipped - папка не может быть passed
+                        allPassed = true;
+                        allSkipped = false;
+                    } else if (status === 'skipped') {
                         allPassed = false;
-                        // skipped не транслируется на папки
+                    } else {
+                        allPassed = false;
+                        allSkipped = false;
                     }
                 } else {
-                    // Для подпапки рекурсивно вычисляем её статус
+                    hasAnyChild = true;
                     const folderStatus = this.calculateNodeStatus(n);
                     if (folderStatus === 'failed') {
                         hasFailed = true;
                         allPassed = false;
-                        hasAnyChild = true;
+                        allSkipped = false;
                     } else if (folderStatus === 'passed') {
-                        hasAnyChild = true;
-                    } else {
-                        // Если подпапка без статуса (null) или skipped - папка не может быть passed
+                        allPassed = true;
+                        allSkipped = false;
+                    } else if (folderStatus === 'skipped') {
                         allPassed = false;
+                    } else {
+                        allPassed = false;
+                        allSkipped = false;
                     }
                 }
             };
             
             node.children.forEach(checkNode);
             
-            // Если есть failed в любом месте (включая подпапки) - папка failed (транслируется вверх)
             if (hasFailed) {
                 return 'failed';
             }
-            // Если все passed (включая все подпапки) и есть хотя бы один ребенок - папка passed (транслируется вверх)
             if (allPassed && hasAnyChild) {
                 return 'passed';
+            }
+            // Все тест-кейсы внутри папки (и подпапок) имеют статус skipped — серый индикатор
+            if (allSkipped && hasAnyChild) {
+                return 'skipped';
             }
             return null;
         }
@@ -616,7 +678,6 @@ export class TestCaseRunnerProvider {
             } else {
                 const indent = level * 5; // Отступ 5px на каждый уровень
                 const isSelected = false; // Выбор определяется в браузере через JavaScript
-                const author = node.data?.author || '';
                 const owner = node.data?.owner || '';
                 const reviewer = node.data?.reviewer || '';
                 const testType = node.data?.testType || '';
@@ -629,7 +690,6 @@ export class TestCaseRunnerProvider {
                     <div class="tree-testcase ${isSelected ? 'selected' : ''}" 
                          style="padding-left: ${indent}px;"
                          data-file-path="${this.escapeHtml(node.filePath || '')}"
-                         data-author="${this.escapeHtml(author)}"
                          data-owner="${this.escapeHtml(owner)}"
                          data-reviewer="${this.escapeHtml(reviewer)}"
                          data-test-type="${this.escapeHtml(testType)}"
@@ -859,8 +919,32 @@ export class TestCaseRunnerProvider {
         .reset-statuses-btn:hover {
             background-color: var(--hover-bg);
         }
-        
         .reset-statuses-btn svg {
+            width: 16px;
+            height: 16px;
+            stroke: currentColor;
+            transition: stroke 0.2s;
+        }
+
+        .sync-btn {
+            padding: 8px 12px;
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            color: var(--text-primary);
+            font-size: 13px;
+            font-weight: 500;
+            gap: 6px;
+        }
+
+        .sync-btn:hover {
+            background-color: var(--hover-bg);
+        }
+
+        .sync-btn svg {
             width: 16px;
             height: 16px;
             stroke: currentColor;
@@ -1703,18 +1787,21 @@ export class TestCaseRunnerProvider {
                 </svg>
                 <span>Сбросить статусы</span>
             </button>
+            <button class="sync-btn" id="sync-btn" title="Sync (перезагрузить раннер)">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+                    <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
+                </svg>
+                <span>Sync</span>
+            </button>
             <button class="theme-toggle" id="theme-toggle" aria-label="Activate dark mode">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
             </button>
         </div>
     </div>
     <div class="filter-section">
-        <div class="filter-group">
-            <span class="filter-label">Автор:</span>
-            <select class="filter-select" id="filter-author">
-                <option value="">Все</option>
-            </select>
-        </div>
         <div class="filter-group">
             <span class="filter-label">Исполнитель:</span>
             <select class="filter-select" id="filter-owner">
@@ -1724,30 +1811,6 @@ export class TestCaseRunnerProvider {
         <div class="filter-group">
             <span class="filter-label">Тип теста:</span>
             <select class="filter-select" id="filter-test-type">
-                <option value="">Все</option>
-            </select>
-        </div>
-        <div class="filter-group">
-            <span class="filter-label">Статус:</span>
-            <select class="filter-select" id="filter-status">
-                <option value="">Все</option>
-            </select>
-        </div>
-        <div class="filter-group">
-            <span class="filter-label">Эпик:</span>
-            <select class="filter-select" id="filter-epic">
-                <option value="">Все</option>
-            </select>
-        </div>
-        <div class="filter-group">
-            <span class="filter-label">Фича:</span>
-            <select class="filter-select" id="filter-feature">
-                <option value="">Все</option>
-            </select>
-        </div>
-        <div class="filter-group">
-            <span class="filter-label">Стори:</span>
-            <select class="filter-select" id="filter-story">
                 <option value="">Все</option>
             </select>
         </div>
@@ -1849,8 +1912,8 @@ export class TestCaseRunnerProvider {
             const SERVER_URL = 'http://localhost:' + SERVER_PORT;
             
             // Данные тест-кейсов
-            const testCasesData = ${JSON.stringify(testCasesData)};
-            const filePathMap = ${JSON.stringify(filePathMap || {})};
+            let testCasesData = ${JSON.stringify(testCasesData)};
+            let filePathMap = ${JSON.stringify(filePathMap || {})};
             const configTags = ${JSON.stringify(configTags || [])};
             const testers = ${JSON.stringify(testers || [])};
             const skipReasons = ${JSON.stringify(skipReasons || [])};
@@ -1976,25 +2039,74 @@ export class TestCaseRunnerProvider {
                     showNotification(\`Сброшено статусов в тест-кейсах: \${updatedCount}, шагов: \${stepsCount}\`, 'success');
                 });
             }
+
+            // Обработчик кнопки Sync (git pull + обновление дерева)
+            const syncBtn = document.getElementById('sync-btn');
+            if (syncBtn) {
+                syncBtn.addEventListener('click', async function() {
+                    syncBtn.disabled = true;
+                    try {
+                        const response = await fetch(SERVER_URL + '/api/sync', { method: 'POST' });
+                        const data = await response.json();
+                        if (!data.success) {
+                            showNotification('Sync: ' + (data.error || 'ошибка'), 'error');
+                            return;
+                        }
+                        testCasesData = data.testCasesData || {};
+                        filePathMap = data.filePathMap || {};
+                        const treeContainer = document.getElementById('test-case-tree');
+                        if (treeContainer && data.treeHtml !== undefined) {
+                            const resizer = treeContainer.querySelector('.tree-resizer');
+                            treeContainer.innerHTML = data.treeHtml;
+                            if (resizer) treeContainer.appendChild(resizer);
+                        }
+                        // Перезаполняем выпадающие списки фильтров из новых данных
+                        const owners = new Set();
+                        const testTypes = new Set();
+                        const tagsSet = new Set();
+                        Object.values(testCasesData).forEach(tc => {
+                            if (tc.owner) owners.add(tc.owner);
+                            if (tc.testType) testTypes.add(tc.testType);
+                            if (tc.tags) {
+                                if (typeof tc.tags === 'string') {
+                                    tc.tags.split(',').forEach(tag => { const t = tag.trim(); if (t) tagsSet.add(t); });
+                                } else if (Array.isArray(tc.tags)) { tc.tags.forEach(tag => { if (tag) tagsSet.add(tag); });
+                                }
+                            }
+                        });
+                        if (configTags && Array.isArray(configTags)) configTags.forEach(tag => { if (tag) tagsSet.add(tag); });
+                        const ownerSelect = document.getElementById('filter-owner');
+                        const testTypeSelect = document.getElementById('filter-test-type');
+                        const tagsSelect = document.getElementById('filter-tags');
+                        [ownerSelect, testTypeSelect, tagsSelect].forEach((sel, i) => {
+                            if (!sel) return;
+                            while (sel.options.length > 1) sel.remove(1);
+                            const sets = [owners, testTypes, tagsSet][i];
+                            Array.from(sets).sort().forEach(val => {
+                                const opt = document.createElement('option');
+                                opt.value = val;
+                                opt.textContent = val;
+                                sel.appendChild(opt);
+                            });
+                        });
+                        filterTree();
+                        showNotification('Sync выполнен: git pull и дерево обновлены', 'success');
+                    } catch (err) {
+                        showNotification('Sync: ' + (err.message || String(err)), 'error');
+                    } finally {
+                        syncBtn.disabled = false;
+                    }
+                });
+            }
             
             // Инициализация фильтров
-            const authors = new Set();
             const owners = new Set();
             const testTypes = new Set();
-            const statuses = new Set();
-            const epics = new Set();
-            const features = new Set();
-            const stories = new Set();
             const tagsSet = new Set();
             
             Object.values(testCasesData).forEach(tc => {
-                if (tc.author) authors.add(tc.author);
                 if (tc.owner) owners.add(tc.owner);
                 if (tc.testType) testTypes.add(tc.testType);
-                if (tc.status) statuses.add(tc.status);
-                if (tc.epic) epics.add(tc.epic);
-                if (tc.feature) features.add(tc.feature);
-                if (tc.story) stories.add(tc.story);
                 // Теги могут быть строкой с разделителями или массивом
                 if (tc.tags) {
                     if (typeof tc.tags === 'string') {
@@ -2017,23 +2129,11 @@ export class TestCaseRunnerProvider {
                 });
             }
             
-            const authorSelect = document.getElementById('filter-author');
             const ownerSelect = document.getElementById('filter-owner');
             const testTypeSelect = document.getElementById('filter-test-type');
-            const statusSelect = document.getElementById('filter-status');
-            const epicSelect = document.getElementById('filter-epic');
-            const featureSelect = document.getElementById('filter-feature');
-            const storySelect = document.getElementById('filter-story');
             const tagsSelect = document.getElementById('filter-tags');
             
             // Заполнение выпадающих списков
-            Array.from(authors).sort().forEach(author => {
-                const option = document.createElement('option');
-                option.value = author;
-                option.textContent = author;
-                authorSelect.appendChild(option);
-            });
-            
             Array.from(owners).sort().forEach(owner => {
                 const option = document.createElement('option');
                 option.value = owner;
@@ -2046,34 +2146,6 @@ export class TestCaseRunnerProvider {
                 option.value = testType;
                 option.textContent = testType;
                 testTypeSelect.appendChild(option);
-            });
-            
-            Array.from(statuses).sort().forEach(status => {
-                const option = document.createElement('option');
-                option.value = status;
-                option.textContent = status;
-                statusSelect.appendChild(option);
-            });
-            
-            Array.from(epics).sort().forEach(epic => {
-                const option = document.createElement('option');
-                option.value = epic;
-                option.textContent = epic;
-                epicSelect.appendChild(option);
-            });
-            
-            Array.from(features).sort().forEach(feature => {
-                const option = document.createElement('option');
-                option.value = feature;
-                option.textContent = feature;
-                featureSelect.appendChild(option);
-            });
-            
-            Array.from(stories).sort().forEach(story => {
-                const option = document.createElement('option');
-                option.value = story;
-                option.textContent = story;
-                storySelect.appendChild(option);
             });
             
             Array.from(tagsSet).sort().forEach(tag => {
@@ -2123,12 +2195,13 @@ export class TestCaseRunnerProvider {
                     total++;
                     
                     // Проверяем статусы шагов
-                    const stepStatuses = testCase.steps.map(step => step.status || '');
+                    const stepStatuses = testCase.steps.map(step => (step.status || '').trim());
                     const hasFailed = stepStatuses.some(status => status === 'failed');
                     const hasSkipped = stepStatuses.some(status => status === 'skipped');
                     const allPassed = stepStatuses.every(status => status === 'passed');
-                    const hasOtherStatus = stepStatuses.some(status => 
-                        status && status !== 'passed' && status !== 'failed' && status !== 'skipped'
+                    // Осталось: хотя бы один шаг не passed/failed/skipped (включая пустой статус)
+                    const hasRemaining = stepStatuses.some(status =>
+                        status !== 'passed' && status !== 'failed' && status !== 'skipped'
                     );
                     
                     if (hasFailed) {
@@ -2140,7 +2213,7 @@ export class TestCaseRunnerProvider {
                     if (allPassed) {
                         passed++;
                     }
-                    if (hasOtherStatus) {
+                    if (hasRemaining) {
                         remaining++;
                     }
                 });
@@ -2284,22 +2357,18 @@ export class TestCaseRunnerProvider {
                     
                     let hasFailed = false;
                     let allPassed = true;
+                    let allSkipped = true;
                     let hasAnyChild = false;
                     
-                    // Проверяем все дочерние элементы (тест-кейсы и подпапки)
                     const childrenContainer = folderEl.querySelector('.tree-folder-children');
                     if (childrenContainer) {
                         const childTestCases = childrenContainer.querySelectorAll('.tree-testcase[data-file-path]');
                         const childFolders = childrenContainer.querySelectorAll('.tree-folder');
                         
-                        // Проверяем только видимые тест-кейсы
                         childTestCases.forEach(testCaseEl => {
-                            // Пропускаем скрытые элементы
                             if (testCaseEl.classList.contains('hidden')) return;
-                            
                             const fullPath = testCaseEl.getAttribute('data-file-path');
                             if (!fullPath) return;
-                            
                             let relativePath = null;
                             for (const [relPath, fullPathValue] of Object.entries(filePathMap)) {
                                 if (fullPathValue === fullPath) {
@@ -2310,43 +2379,45 @@ export class TestCaseRunnerProvider {
                             if (!relativePath && testCasesData[fullPath]) {
                                 relativePath = fullPath;
                             }
-                            
                             if (relativePath && testCasesData[relativePath]) {
+                                hasAnyChild = true;
                                 const status = calculateTestCaseStatus(testCasesData[relativePath]);
                                 if (status === 'failed') {
                                     hasFailed = true;
                                     allPassed = false;
-                                    hasAnyChild = true;
+                                    allSkipped = false;
                                 } else if (status === 'passed') {
-                                    hasAnyChild = true;
-                                } else if (status === null || status === 'skipped') {
-                                    // Если тест-кейс без статуса или skipped - папка не может быть passed
+                                    allPassed = true;
+                                    allSkipped = false;
+                                } else if (status === 'skipped') {
                                     allPassed = false;
-                                    // skipped не транслируется на папки
+                                } else {
+                                    allPassed = false;
+                                    allSkipped = false;
                                 }
                             }
                         });
                         
-                        // Проверяем только видимые подпапки (failed транслируется вверх, passed транслируется вверх, skipped - нет)
                         childFolders.forEach(childFolderEl => {
-                            // Пропускаем скрытые папки
                             if (childFolderEl.classList.contains('hidden')) return;
-                            
+                            hasAnyChild = true;
                             const childIndicator = childFolderEl.querySelector('.tree-status-indicator');
                             if (childIndicator && childIndicator.classList.contains('status-failed')) {
                                 hasFailed = true;
                                 allPassed = false;
-                                hasAnyChild = true;
+                                allSkipped = false;
                             } else if (childIndicator && childIndicator.classList.contains('status-passed')) {
-                                hasAnyChild = true;
-                            } else {
-                                // Если подпапка без статуса (нет кружка) или skipped - папка не может быть passed
+                                allPassed = true;
+                                allSkipped = false;
+                            } else if (childIndicator && childIndicator.classList.contains('status-skipped')) {
                                 allPassed = false;
+                            } else {
+                                allPassed = false;
+                                allSkipped = false;
                             }
                         });
                     }
                     
-                    // Обновляем индикатор папки
                     const indicator = folderEl.querySelector('.tree-status-indicator');
                     if (indicator) {
                         indicator.className = 'tree-status-indicator';
@@ -2354,27 +2425,21 @@ export class TestCaseRunnerProvider {
                             indicator.classList.add('status-failed');
                         } else if (allPassed && hasAnyChild) {
                             indicator.classList.add('status-passed');
+                        } else if (allSkipped && hasAnyChild) {
+                            indicator.classList.add('status-skipped');
                         }
-                        // Иначе папка без кружка (есть тест-кейсы без статуса или skipped, или нет видимых детей)
                     }
                 });
             }
             
             // Функция фильтрации дерева
             function filterTree() {
-                const selectedAuthor = authorSelect.value;
                 const selectedOwner = ownerSelect.value;
                 const selectedTestType = testTypeSelect.value;
-                const selectedStatus = statusSelect.value;
-                const selectedEpic = epicSelect.value;
-                const selectedFeature = featureSelect.value;
-                const selectedStory = storySelect.value;
                 const selectedTag = tagsSelect.value;
                 
                 // Проверяем, есть ли активные фильтры
-                const hasActiveFilters = selectedAuthor || selectedOwner || 
-                                       selectedTestType || selectedStatus || selectedEpic || 
-                                       selectedFeature || selectedStory || selectedTag;
+                const hasActiveFilters = selectedOwner || selectedTestType || selectedTag;
                 
                 // Если фильтров нет, показываем все элементы
                 if (!hasActiveFilters) {
@@ -2388,27 +2453,16 @@ export class TestCaseRunnerProvider {
                 
                 // Сначала фильтруем тест-кейсы
                 document.querySelectorAll('.tree-testcase').forEach(testCaseEl => {
-                    const author = testCaseEl.getAttribute('data-author') || '';
                     const owner = testCaseEl.getAttribute('data-owner') || '';
                     const testType = testCaseEl.getAttribute('data-test-type') || '';
-                    const status = testCaseEl.getAttribute('data-status') || '';
-                    const epic = testCaseEl.getAttribute('data-epic') || '';
-                    const feature = testCaseEl.getAttribute('data-feature') || '';
-                    const story = testCaseEl.getAttribute('data-story') || '';
                     const tags = testCaseEl.getAttribute('data-tags') || '';
                     
-                    const matchAuthor = !selectedAuthor || author === selectedAuthor;
                     const matchOwner = !selectedOwner || owner === selectedOwner;
                     const matchTestType = !selectedTestType || testType === selectedTestType;
-                    const matchStatus = !selectedStatus || status === selectedStatus;
-                    const matchEpic = !selectedEpic || epic === selectedEpic;
-                    const matchFeature = !selectedFeature || feature === selectedFeature;
-                    const matchStory = !selectedStory || story === selectedStory;
                     // Для тегов проверяем, содержит ли строка выбранный тег
                     const matchTags = !selectedTag || (tags && tags.split(',').some(t => t.trim() === selectedTag));
                     
-                    if (matchAuthor && matchOwner && matchTestType && 
-                        matchStatus && matchEpic && matchFeature && matchStory && matchTags) {
+                    if (matchOwner && matchTestType && matchTags) {
                         testCaseEl.classList.remove('hidden');
                     } else {
                         testCaseEl.classList.add('hidden');
@@ -2461,13 +2515,8 @@ export class TestCaseRunnerProvider {
             }
             
             // Добавляем обработчики для всех фильтров
-            authorSelect.addEventListener('change', filterTree);
             ownerSelect.addEventListener('change', filterTree);
             testTypeSelect.addEventListener('change', filterTree);
-            statusSelect.addEventListener('change', filterTree);
-            epicSelect.addEventListener('change', filterTree);
-            featureSelect.addEventListener('change', filterTree);
-            storySelect.addEventListener('change', filterTree);
             tagsSelect.addEventListener('change', filterTree);
             
             // Кнопка сброса фильтров
@@ -2475,13 +2524,8 @@ export class TestCaseRunnerProvider {
             if (resetBtn) {
                 resetBtn.addEventListener('click', function() {
                     // Сбрасываем все фильтры в значение "Все" (пустое значение)
-                    authorSelect.value = '';
                     ownerSelect.value = '';
                     testTypeSelect.value = '';
-                    statusSelect.value = '';
-                    epicSelect.value = '';
-                    featureSelect.value = '';
-                    storySelect.value = '';
                     tagsSelect.value = '';
                     
                     // Применяем фильтрацию (которая покажет все элементы)
@@ -2914,7 +2958,7 @@ export class TestCaseRunnerProvider {
             
             if (skipReasonConfirm) {
                 skipReasonConfirm.addEventListener('click', async function() {
-                    if (!contextMenuTargetFolderPath || !skipReasonInput) return;
+                    if ((!contextMenuTargetPath && !contextMenuTargetFolderPath) || !skipReasonInput) return;
                     
                     const reason = skipReasonInput.value.trim();
                     if (!reason) {
@@ -2987,8 +3031,9 @@ export class TestCaseRunnerProvider {
                         }
                     });
                     
-                    // Обновляем статистику
+                    // Обновляем статистику и индикаторы статусов в дереве (кружки)
                     updateStats();
+                    updateTreeStatusIndicators();
                     
                     // Включаем кнопки сохранения
                     document.getElementById('save-selected-btn').disabled = false;
@@ -3126,10 +3171,6 @@ export class TestCaseRunnerProvider {
                     \`<option value="\${escapeHtml(t)}" \${testCase.owner === t ? 'selected' : ''}>\${escapeHtml(t)}</option>\`
                 ).join('') : '';
                 
-                const authorOptions = testers && testers.length > 0 ? testers.map(t => 
-                    \`<option value="\${escapeHtml(t)}" \${testCase.author === t ? 'selected' : ''}>\${escapeHtml(t)}</option>\`
-                ).join('') : '';
-                
                 const reviewerOptions = testers && testers.length > 0 ? testers.map(t => 
                     \`<option value="\${escapeHtml(t)}" \${testCase.reviewer === t ? 'selected' : ''}>\${escapeHtml(t)}</option>\`
                 ).join('') : '';
@@ -3187,21 +3228,6 @@ export class TestCaseRunnerProvider {
                                     </select>
                                     \` : \`
                                     <span>\${escapeHtml(testCase.owner || '')}</span>
-                                    \`}
-                                </div>
-                                <div class="viewer-meta-item">
-                                    <span class="viewer-meta-label">Автор:</span>
-                                    \${testers && testers.length > 0 ? \`
-                                    <select 
-                                        class="viewer-meta-select" 
-                                        id="test-case-author" 
-                                        data-field="author"
-                                    >
-                                        <option value="">-- Выберите --</option>
-                                        \${authorOptions}
-                                    </select>
-                                    \` : \`
-                                    <span>\${escapeHtml(testCase.author || '')}</span>
                                     \`}
                                 </div>
                                 <div class="viewer-meta-item">
@@ -3704,18 +3730,6 @@ export class TestCaseRunnerProvider {
                 if (ownerSelect) {
                     ownerSelect.addEventListener('change', function() {
                         testCase.owner = this.value;
-                        if (currentFilePath) {
-                            modifiedFiles.add(currentFilePath);
-                            document.getElementById('save-selected-btn').disabled = false;
-                            document.getElementById('save-all-btn').disabled = false;
-                        }
-                    });
-                }
-                
-                const authorSelect = document.getElementById('test-case-author');
-                if (authorSelect) {
-                    authorSelect.addEventListener('change', function() {
-                        testCase.author = this.value;
                         if (currentFilePath) {
                             modifiedFiles.add(currentFilePath);
                             document.getElementById('save-selected-btn').disabled = false;
