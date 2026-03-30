@@ -1335,18 +1335,64 @@ export class MarkdownTestCaseRenderer {
             background-color: var(--vscode-button-hoverBackground);
         }
 
-        .viewer-top-header {
+        .viewer-top-header-wrapper {
             position: sticky;
             top: 0;
-            background-color: var(--vscode-editor-background);
-            border-bottom: 1px solid var(--vscode-panel-border);
-            padding: 12px 24px;
             margin: -24px -24px 24px -24px;
+            z-index: 100;
+            background-color: var(--vscode-editor-background);
+        }
+
+        .viewer-header-toggle {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: var(--vscode-editor-background);
+            border: none;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            color: var(--vscode-foreground);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 6px 12px;
+            transition: background-color 0.2s;
+        }
+
+        .viewer-header-toggle:hover {
+            background-color: var(--vscode-list-hoverBackground);
+        }
+
+        .viewer-header-toggle-icon {
+            display: inline-block;
+            transition: transform 0.25s ease;
+        }
+
+        .viewer-header-toggle.expanded .viewer-header-toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .viewer-top-header {
+            background-color: var(--vscode-editor-background);
+            border-bottom: 1px solid transparent;
+            padding: 0 24px;
             display: flex;
             align-items: center;
             justify-content: flex-end;
             gap: 8px;
-            z-index: 100;
+            overflow: hidden;
+            max-height: 0;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: max-height 0.3s ease, opacity 0.25s ease, transform 0.3s ease, padding 0.3s ease, border-color 0.3s ease;
+        }
+
+        .viewer-top-header.expanded {
+            max-height: 96px;
+            opacity: 1;
+            transform: translateY(0);
+            padding: 12px 24px;
+            border-bottom-color: var(--vscode-panel-border);
         }
 
         .viewer-header-button {
@@ -1390,35 +1436,41 @@ export class MarkdownTestCaseRenderer {
     </style>
 </head>
 <body>
-    <div class="viewer-top-header">
-        <button class="viewer-header-button" id="run-tests-button" title="Запустить прогон тестов">
-            <span class="viewer-header-button-icon">▶</span>
-            <span>Запуск тест-кейсов</span>
+    <div class="viewer-top-header-wrapper">
+        <button class="viewer-header-toggle" id="toggle-header-button" title="Развернуть/свернуть панель действий">
+            <span class="viewer-header-toggle-icon">▼</span>
+            <span class="viewer-header-toggle-text">Показать панель действий</span>
         </button>
-        <button class="viewer-header-button" id="statistics-button" title="Открыть статистику">
-            <span class="viewer-header-button-icon">📊</span>
-            <span>Статистика</span>
-        </button>
-        <button class="viewer-header-button" id="settings-button" title="Открыть настройки">
-            <span class="viewer-header-button-icon">⚙️</span>
-            <span>Настройки</span>
-        </button>
-        <button class="viewer-header-button" id="generate-report-button" title="Сгенерировать отчет о прогоне">
-            <span class="viewer-header-button-icon">📄</span>
-            <span>Сгенерировать отчет о прогоне</span>
-        </button>
-        <button class="viewer-header-button" id="generate-allure-button" title="Сгенерировать Allure отчет">
-            <span class="viewer-header-button-icon">📊</span>
-            <span>Allure</span>
-        </button>
-        <button class="viewer-header-button" id="refresh-button" title="Принудительно обновить и синхронизировать с файлом">
-            <span class="viewer-header-button-icon">🔄</span>
-            <span>Обновить</span>
-        </button>
-        <button class="viewer-header-button ${showStatusColumn ? 'active' : ''}" id="show-status-button" title="Показать/скрыть колонку статуса">
-            <span class="viewer-header-button-icon">✓</span>
-            <span>Показать статус</span>
-        </button>
+        <div class="viewer-top-header" id="viewer-top-header">
+            <button class="viewer-header-button" id="run-tests-button" title="Запустить прогон тестов">
+                <span class="viewer-header-button-icon">▶</span>
+                <span>Запуск тест-кейсов</span>
+            </button>
+            <button class="viewer-header-button" id="statistics-button" title="Открыть статистику">
+                <span class="viewer-header-button-icon">📊</span>
+                <span>Статистика</span>
+            </button>
+            <button class="viewer-header-button" id="settings-button" title="Открыть настройки">
+                <span class="viewer-header-button-icon">⚙️</span>
+                <span>Настройки</span>
+            </button>
+            <button class="viewer-header-button" id="generate-report-button" title="Сгенерировать отчет о прогоне">
+                <span class="viewer-header-button-icon">📄</span>
+                <span>Сгенерировать отчет о прогоне</span>
+            </button>
+            <button class="viewer-header-button" id="generate-allure-button" title="Сгенерировать Allure отчет">
+                <span class="viewer-header-button-icon">📊</span>
+                <span>Allure</span>
+            </button>
+            <button class="viewer-header-button" id="refresh-button" title="Принудительно обновить и синхронизировать с файлом">
+                <span class="viewer-header-button-icon">🔄</span>
+                <span>Обновить</span>
+            </button>
+            <button class="viewer-header-button ${showStatusColumn ? 'active' : ''}" id="show-status-button" title="Показать/скрыть колонку статуса">
+                <span class="viewer-header-button-icon">✓</span>
+                <span>Показать статус</span>
+            </button>
+        </div>
     </div>
     <div class="container">
         ${this._renderContent(testCase, testersList, showStatusColumn, descriptionCollapsed, preconditionsCollapsed)}
@@ -1436,6 +1488,37 @@ export class MarkdownTestCaseRenderer {
             const generateAllureButton = document.getElementById('generate-allure-button');
             const refreshButton = document.getElementById('refresh-button');
             const showStatusButton = document.getElementById('show-status-button');
+            const headerToggleButton = document.getElementById('toggle-header-button');
+            const headerToggleText = headerToggleButton ? headerToggleButton.querySelector('.viewer-header-toggle-text') : null;
+            const viewerTopHeader = document.getElementById('viewer-top-header');
+
+            function setHeaderExpanded(expanded, skipSave) {
+                if (!viewerTopHeader || !headerToggleButton) {
+                    return;
+                }
+
+                viewerTopHeader.classList.toggle('expanded', expanded);
+                headerToggleButton.classList.toggle('expanded', expanded);
+
+                if (headerToggleText) {
+                    headerToggleText.textContent = expanded ? 'Скрыть панель действий' : 'Показать панель действий';
+                }
+
+                if (!skipSave) {
+                    localStorage.setItem('viewerHeaderExpanded', expanded.toString());
+                }
+            }
+
+            if (headerToggleButton) {
+                const savedHeaderState = localStorage.getItem('viewerHeaderExpanded');
+                const isInitiallyExpanded = savedHeaderState === 'true';
+                setHeaderExpanded(isInitiallyExpanded, true);
+
+                headerToggleButton.addEventListener('click', function() {
+                    const isExpanded = viewerTopHeader && viewerTopHeader.classList.contains('expanded');
+                    setHeaderExpanded(!isExpanded, false);
+                });
+            }
 
             if (runTestsButton) {
                 runTestsButton.addEventListener('click', function() {
