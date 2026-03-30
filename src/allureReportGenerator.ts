@@ -2,6 +2,11 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MarkdownTestCaseParser, MarkdownTestCase, MarkdownTestStep } from './markdownTestCaseParser';
+import { SettingsProvider } from './settingsProvider';
+
+interface AllureReportConfig {
+    MAIN_FOLDER_MANUAL_TESTS?: string;
+}
 
 /**
  * Получить текущую Git ветку
@@ -68,12 +73,96 @@ function mapStepStatusToAllure(status?: string): 'passed' | 'failed' | 'skipped'
 }
 
 /**
+ * Нормализует название каталога для отображения в Allure
+ */
+function normalizeHierarchyName(name: string): string {
+    return name
+        .replace(/^(\d+[_\-. ]+)/, '')
+        .replace(/[_-]+/g, ' ')
+        .trim();
+}
+
+/**
+ * Вычисляет epic/feature/story по пути файла.
+ * Логика:
+ * - Отталкиваемся от первого вхождения MAIN_FOLDER_MANUAL_TESTS,
+ * - первая вложенная папка = epic,
+ * - вторая вложенная папка = feature,
+ * - остальные вложенные папки объединяются в story.
+ */
+function resolveAllureHierarchy(filePath: string, mainFolderManualTests: string): { epic?: string; feature?: string; story?: string } {
+    const normalizedFilePath = path.normalize(filePath);
+    const parts = normalizedFilePath.split(path.sep).filter(Boolean);
+
+    const baseName = mainFolderManualTests.trim().toLowerCase();
+    const baseIndex = parts.findIndex((part) => part.toLowerCase() === baseName);
+    if (baseIndex < 0) {
+        return {};
+    }
+
+    const directoryParts = parts.slice(baseIndex + 1, Math.max(parts.length - 1, 0));
+    const rawSegments = directoryParts.map(normalizeHierarchyName).filter(Boolean);
+
+    if (rawSegments.length === 0) {
+        return {};
+    }
+
+    if (rawSegments.length === 1) {
+        return { epic: rawSegments[0] };
+    }
+
+    if (rawSegments.length === 2) {
+        return {
+            epic: rawSegments[0],
+            feature: rawSegments[1]
+        };
+    }
+
+    return {
+        epic: rawSegments[0],
+        feature: rawSegments[1],
+        story: rawSegments.slice(2).join(' / ')
+    };
+}
+
+/**
+ * Читает config.json в корне workspace.
+ */
+function readAllureReportConfig(workspacePath: string, configuredConfigPath?: string): Required<AllureReportConfig> {
+    const defaultConfig: Required<AllureReportConfig> = {
+        MAIN_FOLDER_MANUAL_TESTS: 'manual'
+    };
+
+    const configPath = configuredConfigPath && configuredConfigPath.trim().length > 0
+        ? configuredConfigPath
+        : path.join(workspacePath, 'config.json');
+    if (!fs.existsSync(configPath)) {
+        return defaultConfig;
+    }
+
+    try {
+        const rawConfig = fs.readFileSync(configPath, 'utf-8');
+        const parsed = JSON.parse(rawConfig) as AllureReportConfig;
+        const mainFolder = (parsed.MAIN_FOLDER_MANUAL_TESTS || '').trim();
+        if (!mainFolder) {
+            return defaultConfig;
+        }
+        return {
+            MAIN_FOLDER_MANUAL_TESTS: mainFolder
+        };
+    } catch {
+        return defaultConfig;
+    }
+}
+
+/**
  * Преобразует тест-кейс в формат allure result
  */
 function convertTestCaseToAllureResult(
     testCase: MarkdownTestCase,
     filePath: string,
-    startTime: number
+    startTime: number,
+    mainFolderManualTests: string
 ): any {
     const testCaseId = testCase.metadata.id || generateUUID();
     const testName = testCase.title || 'Unnamed Test Case';
@@ -134,12 +223,24 @@ function convertTestCaseToAllureResult(
         overallStatus = 'skipped';
     }
     
+    const hierarchy = resolveAllureHierarchy(filePath, mainFolderManualTests);
+
     // Формируем labels для allure
     const labels: any[] = [
         { name: 'suite', value: testCase.metadata.testType || 'Default Suite' },
         { name: 'testClass', value: testCase.metadata.status || 'Default Class' },
         { name: 'testMethod', value: testName }
     ];
+
+    if (hierarchy.epic) {
+        labels.push({ name: 'epic', value: hierarchy.epic });
+    }
+    if (hierarchy.feature) {
+        labels.push({ name: 'feature', value: hierarchy.feature });
+    }
+    if (hierarchy.story) {
+        labels.push({ name: 'story', value: hierarchy.story });
+    }
     
     // Добавляем теги
     if (testCase.tags && testCase.tags.length > 0) {
@@ -239,6 +340,8 @@ export async function generateAllureReport(): Promise<vscode.Uri | null> {
 
         const workspaceFolder = workspaceFolders[0];
         const workspacePath = workspaceFolder.uri.fsPath;
+        const selectedConfigPath = SettingsProvider.getConfigPath();
+        const reportConfig = readAllureReportConfig(workspacePath, selectedConfigPath);
 
         // Получаем текущую ветку Git
         const branch = await getCurrentBranch();
@@ -301,7 +404,12 @@ export async function generateAllureReport(): Promise<vscode.Uri | null> {
         let fileIndex = 0;
 
         for (const { case: testCase, filePath } of testCases) {
-            const allureResult = convertTestCaseToAllureResult(testCase, filePath, baseTime + fileIndex * 100);
+            const allureResult = convertTestCaseToAllureResult(
+                testCase,
+                filePath,
+                baseTime + fileIndex * 100,
+                reportConfig.MAIN_FOLDER_MANUAL_TESTS
+            );
             
             // Генерируем имя файла на основе UUID результата (стандартный формат Allure)
             const jsonFileName = `${allureResult.uuid}-result.json`;

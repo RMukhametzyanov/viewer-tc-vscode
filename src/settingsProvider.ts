@@ -84,6 +84,10 @@ export class SettingsProvider {
         return [...this._testers];
     }
 
+    public static getConfigPath(): string | undefined {
+        return this._configPath;
+    }
+
 
     public static async initialize(context: vscode.ExtensionContext): Promise<void> {
         const configPath = context.workspaceState.get<string>('configPath');
