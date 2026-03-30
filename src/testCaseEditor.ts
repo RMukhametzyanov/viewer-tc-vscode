@@ -8,9 +8,6 @@ interface TestCase {
     description: string;
     preconditions: string;
     expectedResult: string;
-    epic: string;
-    feature: string;
-    story: string;
     component: string;
     testLayer: string;
     severity: string;

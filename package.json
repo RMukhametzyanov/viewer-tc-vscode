@@ -88,11 +88,6 @@
       {
         "command": "testCaseViewer.createFolder",
         "title": "Создать папку"
-      },
-      {
-        "command": "testCaseViewer.toggleTreeMode",
-        "title": "Переключить режим отображения",
-        "icon": "$(list-tree)"
       }
     ],
     "menus": {
@@ -128,11 +123,6 @@
         },
         {
           "command": "testCaseViewer.clearFilters",
-          "when": "view == testCaseViewer.tree",
-          "group": "navigation"
-        },
-        {
-          "command": "testCaseViewer.toggleTreeMode",
           "when": "view == testCaseViewer.tree",
           "group": "navigation"
         }

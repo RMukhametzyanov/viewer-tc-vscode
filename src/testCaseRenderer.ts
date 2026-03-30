@@ -4,9 +4,6 @@ interface TestCase {
     description: string;
     preconditions: string;
     expectedResult: string;
-    epic: string;
-    feature: string;
-    story: string;
     component: string;
     testLayer: string;
     severity: string;
@@ -1787,20 +1784,6 @@ export class TestCaseRenderer {
                 const minHeight = 40;
                 textarea.style.height = Math.max(minHeight, scrollHeight) + 'px';
             }
-            
-            // Handle epic, feature, story input fields
-            const epicFeatureStoryInputs = document.querySelectorAll('#test-case-epic, #test-case-feature, #test-case-story');
-            epicFeatureStoryInputs.forEach(input => {
-                input.addEventListener('blur', function(e) {
-                    const field = e.target.getAttribute('data-field');
-                    const value = e.target.value;
-                    vscode.postMessage({
-                        command: 'updateField',
-                        field: field,
-                        value: value
-                    });
-                });
-            });
             
             // Handle description and preconditions textarea fields
             const descriptionTextareas = document.querySelectorAll('#test-case-description, #test-case-preconditions');

@@ -136,8 +136,8 @@ function convertTestCaseToAllureResult(
     
     // Формируем labels для allure
     const labels: any[] = [
-        { name: 'suite', value: testCase.epicFeatureStory.epic || 'Default Suite' },
-        { name: 'testClass', value: testCase.epicFeatureStory.feature || 'Default Feature' },
+        { name: 'suite', value: testCase.metadata.testType || 'Default Suite' },
+        { name: 'testClass', value: testCase.metadata.status || 'Default Class' },
         { name: 'testMethod', value: testName }
     ];
     

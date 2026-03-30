@@ -12,13 +12,6 @@
  - [Задача](https://..)|
  - [Связанный тест-кейс](https://..)|
 
-## Epic/Feature/Story
-| Поле | Значение |
-|------|----------|
-| **Epic** | Название Epic |
-| **Feature** | Название Feature |
-| **Story** |Название Story |
-
 ## Теги (tags)
 smoke, regress
 

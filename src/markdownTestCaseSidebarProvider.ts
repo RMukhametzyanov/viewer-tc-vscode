@@ -207,12 +207,6 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                         testCase.links.pop();
                     }
                 }
-            } else if (field === 'epic') {
-                testCase.epicFeatureStory.epic = value;
-            } else if (field === 'feature') {
-                testCase.epicFeatureStory.feature = value;
-            } else if (field === 'story') {
-                testCase.epicFeatureStory.story = value;
             }
 
             // Serialize back to markdown
@@ -711,8 +705,7 @@ export class MarkdownTestCaseSidebarProvider implements vscode.WebviewViewProvid
                                (testCase.tags && testCase.tags.length > 0) ||
                                (testCase.links && testCase.links.length > 0) ||
                                (testCase.attachedDocuments && testCase.attachedDocuments.length > 0) ||
-                               (testCase.comments && testCase.comments.length > 0) ||
-                               Object.keys(testCase.epicFeatureStory).length > 0;
+                               (testCase.comments && testCase.comments.length > 0);
             
             if (hasContent || content.includes('## Метаданные') || content.includes('## Шаги тестирования')) {
                 const testers = SettingsProvider.getTesters();

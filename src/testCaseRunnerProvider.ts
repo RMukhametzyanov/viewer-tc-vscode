@@ -10,9 +10,6 @@ interface TestCase {
     description: string;
     preconditions: string;
     expectedResult: string;
-    epic: string;
-    feature: string;
-    story: string;
     component: string;
     testLayer: string;
     severity: string;
@@ -302,11 +299,6 @@ export class TestCaseRunnerProvider {
                             },
                             links: content.issueLinks ? content.issueLinks.split('\n').filter((l: string) => l.trim()) : [],
                             attachedDocuments: [],
-                            epicFeatureStory: {
-                                epic: content.epic || '',
-                                feature: content.feature || '',
-                                story: content.story || ''
-                            },
                             tags: content.tags ? content.tags.split(',').map((t: string) => t.trim()).filter((t: string) => t) : [],
                             description: content.description || '',
                             preconditions: content.preconditions || '',
@@ -420,9 +412,6 @@ export class TestCaseRunnerProvider {
             description: mdCase.description || '',
             preconditions: mdCase.preconditions || '',
             expectedResult: '',
-            epic: mdCase.epicFeatureStory.epic || '',
-            feature: mdCase.epicFeatureStory.feature || '',
-            story: mdCase.epicFeatureStory.story || '',
             component: '',
             testLayer: '',
             severity: '',
@@ -682,9 +671,6 @@ export class TestCaseRunnerProvider {
                 const reviewer = node.data?.reviewer || '';
                 const testType = node.data?.testType || '';
                 const status = node.data?.status || '';
-                const epic = node.data?.epic || '';
-                const feature = node.data?.feature || '';
-                const story = node.data?.story || '';
                 const tags = node.data?.tags || '';
                 return `
                     <div class="tree-testcase ${isSelected ? 'selected' : ''}" 
@@ -694,9 +680,6 @@ export class TestCaseRunnerProvider {
                          data-reviewer="${this.escapeHtml(reviewer)}"
                          data-test-type="${this.escapeHtml(testType)}"
                          data-status="${this.escapeHtml(status)}"
-                         data-epic="${this.escapeHtml(epic)}"
-                         data-feature="${this.escapeHtml(feature)}"
-                         data-story="${this.escapeHtml(story)}"
                          data-tags="${this.escapeHtml(tags)}">
                         <span class="tree-status-indicator ${statusClass}"></span>
                         <span class="tree-testcase-icon">📄</span>

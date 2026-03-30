@@ -53,13 +53,6 @@ async function createNewTestCase(context: vscode.ExtensionContext, folderPath?: 
 
 ## Связи
 
-## Epic/Feature/Story
-| Поле | Значение |
-|------|----------|
-| **Epic** | |
-| **Feature** | |
-| **Story** | |
-
 ## Теги (tags)
 
 ## Описание (description)
@@ -287,17 +280,6 @@ export async function activate(context: vscode.ExtensionContext) {
             updateTreeViewTitle(treeView, treeViewProvider);
             // Принудительно обновляем дерево через команду обновления
             await vscode.commands.executeCommand('testCaseViewer.refreshTree');
-        })
-    );
-
-    context.subscriptions.push(
-        vscode.commands.registerCommand('testCaseViewer.toggleTreeMode', async () => {
-            const currentMode = treeViewProvider.getTreeMode();
-            const newMode = currentMode === 'file' ? 'epic-feature-story' : 'file';
-            treeViewProvider.setTreeMode(newMode);
-            
-            const modeLabel = newMode === 'file' ? 'по файлам' : 'по Epic/Feature/Story';
-            vscode.window.showInformationMessage(`Режим отображения дерева: ${modeLabel}`);
         })
     );
 
@@ -597,9 +579,6 @@ async function showQuickPickFilters(treeProvider: TestCaseTreeViewProvider, tree
         reviewer: 'Ревьювер',
         testType: 'Тип теста',
         status: 'Статус',
-        epic: 'Эпик',
-        feature: 'Фича',
-        story: 'Стори',
         tags: 'Теги'
     };
     
@@ -729,7 +708,7 @@ async function showQuickPickFilters(treeProvider: TestCaseTreeViewProvider, tree
             values = await treeProvider.getUniqueTags();
         } else {
             // Используем тип из фильтров провайдера
-            type FilterKey = 'owner' | 'reviewer' | 'testType' | 'status' | 'epic' | 'feature' | 'story';
+            type FilterKey = 'owner' | 'reviewer' | 'testType' | 'status';
             values = await treeProvider.getUniqueValues(selectedFieldKey as FilterKey);
         }
         
@@ -807,9 +786,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
     const owners = await treeProvider.getUniqueValues('owner');
     const testTypes = await treeProvider.getUniqueValues('testType');
     const statuses = await treeProvider.getUniqueValues('status');
-    const epics = await treeProvider.getUniqueValues('epic');
-    const features = await treeProvider.getUniqueValues('feature');
-    const stories = await treeProvider.getUniqueValues('story');
     const tags = await treeProvider.getUniqueTags();
 
     const html = `<!DOCTYPE html>
@@ -890,27 +866,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
         </select>
     </div>
     <div class="filter-group">
-        <label class="filter-label">Эпик:</label>
-        <select class="filter-select" id="filter-epic">
-            <option value="">Все</option>
-            ${epics.map(e => `<option value="${escapeHtml(e)}" ${currentFilters.epic === e ? 'selected' : ''}>${escapeHtml(e)}</option>`).join('')}
-        </select>
-    </div>
-    <div class="filter-group">
-        <label class="filter-label">Фича:</label>
-        <select class="filter-select" id="filter-feature">
-            <option value="">Все</option>
-            ${features.map(f => `<option value="${escapeHtml(f)}" ${currentFilters.feature === f ? 'selected' : ''}>${escapeHtml(f)}</option>`).join('')}
-        </select>
-    </div>
-    <div class="filter-group">
-        <label class="filter-label">Стори:</label>
-        <select class="filter-select" id="filter-story">
-            <option value="">Все</option>
-            ${stories.map(s => `<option value="${escapeHtml(s)}" ${currentFilters.story === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('')}
-        </select>
-    </div>
-    <div class="filter-group">
         <label class="filter-label">Теги:</label>
         <select class="filter-select" id="filter-tags">
             <option value="">Все</option>
@@ -933,9 +888,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
         const ownerSelect = document.getElementById('filter-owner');
         const testTypeSelect = document.getElementById('filter-test-type');
         const statusSelect = document.getElementById('filter-status');
-        const epicSelect = document.getElementById('filter-epic');
-        const featureSelect = document.getElementById('filter-feature');
-        const storySelect = document.getElementById('filter-story');
         const tagsSelect = document.getElementById('filter-tags');
         const commentStatusSelect = document.getElementById('filter-comment-status');
         const resetBtn = document.getElementById('filter-reset-btn');
@@ -945,9 +897,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
                 owner: ownerSelect.value || undefined,
                 testType: testTypeSelect.value || undefined,
                 status: statusSelect.value || undefined,
-                epic: epicSelect.value || undefined,
-                feature: featureSelect.value || undefined,
-                story: storySelect.value || undefined,
                 tags: tagsSelect.value || undefined,
                 commentStatus: commentStatusSelect.value || undefined
             };
@@ -961,9 +910,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
         ownerSelect.addEventListener('change', applyFilters);
         testTypeSelect.addEventListener('change', applyFilters);
         statusSelect.addEventListener('change', applyFilters);
-        epicSelect.addEventListener('change', applyFilters);
-        featureSelect.addEventListener('change', applyFilters);
-        storySelect.addEventListener('change', applyFilters);
         tagsSelect.addEventListener('change', applyFilters);
         commentStatusSelect.addEventListener('change', applyFilters);
         
@@ -971,9 +917,6 @@ async function showFiltersPanel(context: vscode.ExtensionContext, treeProvider: 
             ownerSelect.value = '';
             testTypeSelect.value = '';
             statusSelect.value = '';
-            epicSelect.value = '';
-            featureSelect.value = '';
-            storySelect.value = '';
             tagsSelect.value = '';
             commentStatusSelect.value = '';
             applyFilters();

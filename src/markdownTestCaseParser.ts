@@ -14,11 +14,6 @@ export interface MarkdownTestCase {
     };
     links?: string[];
     attachedDocuments?: string[];
-    epicFeatureStory: {
-        epic?: string;
-        feature?: string;
-        story?: string;
-    };
     tags?: string[];
     description?: string;
     preconditions?: string;
@@ -43,7 +38,6 @@ export class MarkdownTestCaseParser {
             metadata: {},
             links: [],
             attachedDocuments: [],
-            epicFeatureStory: {},
             tags: [],
             steps: [],
             comments: []
@@ -103,7 +97,7 @@ export class MarkdownTestCaseParser {
             }
 
             // Check if this is a table header row (if we're in a section with tables)
-            if (!inTable && line.startsWith('|') && (currentSection === 'Метаданные' || currentSection === 'Epic/Feature/Story' || currentSection === 'Шаги тестирования' || currentSection === 'Комментарии')) {
+            if (!inTable && line.startsWith('|') && (currentSection === 'Метаданные' || currentSection === 'Шаги тестирования' || currentSection === 'Комментарии')) {
                 // Check if next line is a separator
                 if (i + 1 < lines.length) {
                     const nextLine = lines[i + 1].trim();
@@ -161,21 +155,6 @@ export class MarkdownTestCaseParser {
                         result.metadata.status = value;
                     } else if (field === 'Тип теста') {
                         result.metadata.testType = value;
-                    }
-                }
-            }
-        } else if (section === 'Epic/Feature/Story') {
-            for (const row of rows) {
-                if (row.length >= 2) {
-                    const field = row[0].replace(/\*\*/g, '').trim();
-                    const value = row[1].trim();
-                    
-                    if (field === 'Epic') {
-                        result.epicFeatureStory.epic = value;
-                    } else if (field === 'Feature') {
-                        result.epicFeatureStory.feature = value;
-                    } else if (field === 'Story') {
-                        result.epicFeatureStory.story = value;
                     }
                 }
             }
@@ -318,15 +297,6 @@ export class MarkdownTestCaseParser {
                 lines.push(` - ${link}`);
             });
         }
-        lines.push('');
-
-        // Epic/Feature/Story
-        lines.push('## Epic/Feature/Story');
-        lines.push('| Поле | Значение |');
-        lines.push('|------|----------|');
-        lines.push(`| **Epic** | ${testCase.epicFeatureStory.epic || ''} |`);
-        lines.push(`| **Feature** | ${testCase.epicFeatureStory.feature || ''} |`);
-        lines.push(`| **Story** | ${testCase.epicFeatureStory.story || ''} |`);
         lines.push('');
 
         // Теги

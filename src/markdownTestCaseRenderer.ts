@@ -733,52 +733,6 @@ export class MarkdownTestCaseRenderer {
             font-size: 13px;
         }
         
-        .viewer-epic-feature-story-row {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid var(--vscode-panel-border);
-            font-size: 13px;
-        }
-        
-        .epic-feature-story-inline {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        
-        .epic-feature-story-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .epic-feature-story-item .viewer-meta-label {
-            min-width: 70px;
-            flex-shrink: 0;
-        }
-        
-        .epic-feature-story-input {
-            flex: 1;
-            font-size: 13px;
-            color: var(--vscode-foreground);
-            background-color: var(--vscode-input-background);
-            border: 1px solid var(--vscode-input-border);
-            padding: 4px 8px;
-            border-radius: 2px;
-            font-family: var(--vscode-font-family);
-            box-sizing: border-box;
-        }
-        
-        .epic-feature-story-input:focus {
-            outline: 1px solid var(--vscode-focusBorder);
-            outline-offset: -1px;
-        }
-        
-        .epic-feature-story-input::placeholder {
-            color: var(--vscode-descriptionForeground);
-            opacity: 0.7;
-        }
-        
         .viewer-description-row {
             margin-top: 12px;
             padding-top: 12px;
@@ -1807,24 +1761,6 @@ export class MarkdownTestCaseRenderer {
                 element.addEventListener('blur', function() {
                     const field = this.getAttribute('data-field');
                     const value = this.value || this.textContent || '';
-                    
-                    // For Epic, Feature, Story fields, check if focus moved to another field
-                    // and save that focus info instead
-                    setTimeout(function() {
-                        const activeElement = document.activeElement;
-                        if (activeElement && (activeElement.id === 'test-case-epic' || activeElement.id === 'test-case-feature' || activeElement.id === 'test-case-story')) {
-                            const inputElement = activeElement;
-                            const focusInfo = {
-                                id: inputElement.id,
-                                selectionStart: inputElement.selectionStart !== undefined ? inputElement.selectionStart : undefined,
-                                selectionEnd: inputElement.selectionEnd !== undefined ? inputElement.selectionEnd : undefined
-                            };
-                            vscode.postMessage({
-                                command: 'saveFocusState',
-                                focusInfo: focusInfo
-                            });
-                        }
-                    }, 10);
                     
                     vscode.postMessage({
                         command: 'updateField',
@@ -3013,9 +2949,6 @@ export class MarkdownTestCaseRenderer {
                     </div>
                     ${this._renderLinksInline(testCase.links || [])}
                 </div>
-                <div class="viewer-epic-feature-story-row">
-                    ${this._renderEpicFeatureStoryInline(testCase.epicFeatureStory)}
-                </div>
                 <div class="viewer-description-row">
                     ${this._renderDescriptionInline(testCase.description || '', descriptionCollapsed)}
                 </div>
@@ -3072,46 +3005,6 @@ export class MarkdownTestCaseRenderer {
                             <button class="link-remove-btn" data-link-index="${index}" title="Удалить связь">×</button>
                         </div>
                     `).join('')}
-                </div>
-            </div>
-        `;
-    }
-
-    private static _renderEpicFeatureStoryInline(efs: { epic?: string; feature?: string; story?: string }): string {
-        return `
-            <div class="epic-feature-story-inline">
-                <div class="epic-feature-story-item">
-                    <span class="viewer-meta-label">Epic:</span>
-                    <input 
-                        type="text" 
-                        class="epic-feature-story-input" 
-                        id="test-case-epic" 
-                        data-field="epic" 
-                        value="${this.escapeHtml(efs.epic || '')}" 
-                        placeholder="Укажите название Epic"
-                    />
-                </div>
-                <div class="epic-feature-story-item">
-                    <span class="viewer-meta-label">Feature:</span>
-                    <input 
-                        type="text" 
-                        class="epic-feature-story-input" 
-                        id="test-case-feature" 
-                        data-field="feature" 
-                        value="${this.escapeHtml(efs.feature || '')}" 
-                        placeholder="Укажите название Feature"
-                    />
-                </div>
-                <div class="epic-feature-story-item">
-                    <span class="viewer-meta-label">Story:</span>
-                    <input 
-                        type="text" 
-                        class="epic-feature-story-input" 
-                        id="test-case-story" 
-                        data-field="story" 
-                        value="${this.escapeHtml(efs.story || '')}" 
-                        placeholder="Укажите название Story"
-                    />
                 </div>
             </div>
         `;

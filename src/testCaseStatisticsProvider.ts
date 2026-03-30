@@ -9,9 +9,6 @@ interface TestCaseData {
     reviewer: string;
     status: string;
     testType: string;
-    epic: string;
-    feature: string;
-    story: string;
     tags: string;
     filePath: string;
 }
@@ -21,9 +18,6 @@ interface Statistics {
     byOwner: { [key: string]: number };
     byStatus: { [key: string]: number };
     byTestType: { [key: string]: number };
-    byEpic: { [key: string]: number };
-    byFeature: { [key: string]: number };
-    byStory: { [key: string]: number };
     testCases: TestCaseData[];
 }
 
@@ -36,9 +30,6 @@ export class TestCaseStatisticsProvider {
         owner?: string;
         status?: string;
         testType?: string;
-        epic?: string;
-        feature?: string;
-        story?: string;
         tags?: string;
     }): Promise<Statistics> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -66,9 +57,6 @@ export class TestCaseStatisticsProvider {
                         reviewer: '', // reviewer не хранится в metadata
                         status: mdCase.metadata.status || '',
                         testType: mdCase.metadata.testType || '',
-                        epic: mdCase.epicFeatureStory?.epic || '',
-                        feature: mdCase.epicFeatureStory?.feature || '',
-                        story: mdCase.epicFeatureStory?.story || '',
                         tags: (mdCase.tags || []).join(', '),
                         filePath: file.fsPath
                     };
@@ -78,9 +66,6 @@ export class TestCaseStatisticsProvider {
                         if (filters.owner && testCase.owner !== filters.owner) continue;
                         if (filters.status && testCase.status !== filters.status) continue;
                         if (filters.testType && testCase.testType !== filters.testType) continue;
-                        if (filters.epic && testCase.epic !== filters.epic) continue;
-                        if (filters.feature && testCase.feature !== filters.feature) continue;
-                        if (filters.story && testCase.story !== filters.story) continue;
                         if (filters.tags) {
                             const nodeTags = (testCase.tags || '').split(',').map(t => t.trim());
                             if (!nodeTags.includes(filters.tags)) continue;
@@ -101,9 +86,6 @@ export class TestCaseStatisticsProvider {
             byOwner: {},
             byStatus: {},
             byTestType: {},
-            byEpic: {},
-            byFeature: {},
-            byStory: {},
             testCases: testCases
         };
 
@@ -123,20 +105,6 @@ export class TestCaseStatisticsProvider {
                 statistics.byTestType[testCase.testType] = (statistics.byTestType[testCase.testType] || 0) + 1;
             }
 
-            // По эпикам
-            if (testCase.epic) {
-                statistics.byEpic[testCase.epic] = (statistics.byEpic[testCase.epic] || 0) + 1;
-            }
-
-            // По фичам
-            if (testCase.feature) {
-                statistics.byFeature[testCase.feature] = (statistics.byFeature[testCase.feature] || 0) + 1;
-            }
-
-            // По стори
-            if (testCase.story) {
-                statistics.byStory[testCase.story] = (statistics.byStory[testCase.story] || 0) + 1;
-            }
         }
 
         this._statistics = statistics;
@@ -150,9 +118,6 @@ export class TestCaseStatisticsProvider {
             byOwner: {},
             byStatus: {},
             byTestType: {},
-            byEpic: {},
-            byFeature: {},
-            byStory: {},
             testCases: []
         };
     }

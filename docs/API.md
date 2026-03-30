@@ -12,9 +12,6 @@ interface TestCase {
     description: string;           // Многострочное описание с метаданными
     preconditions: string;          // Предусловия
     expectedResult: string;        // Ожидаемый результат
-    epic: string;                  // Epic
-    feature: string;                // Feature
-    story: string;                 // Story
     component: string;              // Компонент
     testLayer: string;             // Слой тестирования (E2E, Unit, etc.)
     severity: string;               // Серьезность (NORMAL, HIGH, etc.)
