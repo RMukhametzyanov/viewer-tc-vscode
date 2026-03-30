@@ -43,10 +43,8 @@ export class SettingsProvider {
                         context.workspaceState.update('configPath', selectedPath);
                         this._configPath = selectedPath;
                         await this._loadConfig(selectedPath);
-                        panel.webview.postMessage({
-                            command: 'configPathUpdated',
-                            path: selectedPath
-                        });
+                        // Update webview HTML with new data
+                        panel.webview.html = this._getHtmlForWebview(panel.webview, selectedPath);
                         // Notify sidebar to refresh
                         vscode.commands.executeCommand('testCaseViewer.refresh');
                     }
@@ -55,11 +53,12 @@ export class SettingsProvider {
                     context.workspaceState.update('configPath', undefined);
                     this._configPath = undefined;
                     this._testers = [];
-                    panel.webview.postMessage({
-                        command: 'configPathUpdated',
-                        path: ''
-                    });
+                    // Update webview HTML with new data
+                    panel.webview.html = this._getHtmlForWebview(panel.webview, '');
                     vscode.commands.executeCommand('testCaseViewer.refresh');
+                    return;
+                case 'synchronizeTags':
+                    await this._synchronizeTags(context, panel);
                     return;
             }
         });
@@ -85,12 +84,324 @@ export class SettingsProvider {
         return [...this._testers];
     }
 
+    public static getConfigPath(): string | undefined {
+        return this._configPath;
+    }
+
+
     public static async initialize(context: vscode.ExtensionContext): Promise<void> {
         const configPath = context.workspaceState.get<string>('configPath');
         if (configPath) {
             this._configPath = configPath;
             await this._loadConfig(configPath);
         }
+        
+    }
+
+    private static async _synchronizeTags(context: vscode.ExtensionContext, panel: vscode.WebviewPanel): Promise<void> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            vscode.window.showErrorMessage('Откройте рабочую папку для синхронизации тегов');
+            panel.webview.postMessage({
+                command: 'tagsSyncStatus',
+                status: 'error',
+                message: 'Откройте рабочую папку для синхронизации тегов'
+            });
+            return;
+        }
+
+        const workspaceRoot = workspaceFolders[0].uri.fsPath;
+        const configPath = path.join(workspaceRoot, 'config.json');
+
+        try {
+            panel.webview.postMessage({
+                command: 'tagsSyncStatus',
+                status: 'progress',
+                message: 'Сканирование файлов...'
+            });
+
+            // Scan all JSON and Markdown files in the repository
+            const tags = new Set<string>();
+            await this._scanJsonFilesForTags(workspaceRoot, tags);
+            await this._scanMarkdownFilesForTags(workspaceRoot, tags);
+
+            // Convert Set to sorted array
+            const tagsArray = Array.from(tags).sort();
+
+            // Read existing config or create new one
+            let config: any = {};
+            if (fs.existsSync(configPath)) {
+                try {
+                    const content = fs.readFileSync(configPath, 'utf8');
+                    config = JSON.parse(content);
+                } catch (error) {
+                    vscode.window.showWarningMessage(`Ошибка при чтении config.json: ${error}. Будет создан новый файл.`);
+                }
+            }
+
+            // Update TAGS in config
+            config.TAGS = tagsArray;
+
+            // Write config back
+            const configContent = JSON.stringify(config, null, 4);
+            fs.writeFileSync(configPath, configContent, 'utf8');
+
+            vscode.window.showInformationMessage(`Синхронизация завершена. Найдено тегов: ${tagsArray.length}`);
+            panel.webview.postMessage({
+                command: 'tagsSyncStatus',
+                status: 'success',
+                message: `Синхронизация завершена. Найдено тегов: ${tagsArray.length}`,
+                tagsCount: tagsArray.length
+            });
+        } catch (error) {
+            const errorMessage = `Ошибка при синхронизации тегов: ${error}`;
+            vscode.window.showErrorMessage(errorMessage);
+            panel.webview.postMessage({
+                command: 'tagsSyncStatus',
+                status: 'error',
+                message: errorMessage
+            });
+        }
+    }
+
+    private static async _scanJsonFilesForTags(rootPath: string, tagsSet: Set<string>): Promise<void> {
+        const files = fs.readdirSync(rootPath, { withFileTypes: true });
+
+        for (const file of files) {
+            const fullPath = path.join(rootPath, file.name);
+
+            // Skip node_modules, .git, and other common directories
+            if (file.isDirectory()) {
+                if (file.name === 'node_modules' || file.name === '.git' || file.name === 'out' || file.name === '.vscode') {
+                    continue;
+                }
+                await this._scanJsonFilesForTags(fullPath, tagsSet);
+            } else if (file.isFile() && file.name.endsWith('.json')) {
+                try {
+                    const content = fs.readFileSync(fullPath, 'utf8');
+                    const json = JSON.parse(content);
+
+                    // Extract tags from the JSON object
+                    if (json.tags) {
+                        if (typeof json.tags === 'string') {
+                            // If tags is a string, split by comma and trim
+                            const tagList = json.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag.length > 0);
+                            tagList.forEach((tag: string) => tagsSet.add(tag));
+                        } else if (Array.isArray(json.tags)) {
+                            // If tags is an array
+                            json.tags.forEach((tag: string) => {
+                                if (typeof tag === 'string' && tag.trim().length > 0) {
+                                    tagsSet.add(tag.trim());
+                                }
+                            });
+                        }
+                    }
+                } catch (error) {
+                    // Skip files that can't be parsed as JSON
+                    continue;
+                }
+            }
+        }
+    }
+
+    private static async _scanMarkdownFilesForTags(rootPath: string, tagsSet: Set<string>): Promise<void> {
+        const files = fs.readdirSync(rootPath, { withFileTypes: true });
+
+        for (const file of files) {
+            const fullPath = path.join(rootPath, file.name);
+
+            // Skip node_modules, .git, and other common directories
+            if (file.isDirectory()) {
+                if (file.name === 'node_modules' || file.name === '.git' || file.name === 'out' || file.name === '.vscode') {
+                    continue;
+                }
+                await this._scanMarkdownFilesForTags(fullPath, tagsSet);
+            } else if (file.isFile() && (file.name.endsWith('.md') || file.name.endsWith('.markdown'))) {
+                try {
+                    const content = fs.readFileSync(fullPath, 'utf8');
+                    const lines = content.split('\n');
+
+                    let currentSection = '';
+                    let inTagsSection = false;
+
+                    // Find the "## Теги (tags)" section using similar logic to MarkdownTestCaseParser
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i].trim();
+
+                        // Check for headers
+                        if (line.startsWith('##')) {
+                            const headerText = line.replace(/^##\s*/, '').trim();
+                            currentSection = headerText;
+                            
+                            // Check if this is the tags section
+                            if (headerText === 'Теги (tags)' || headerText === 'Теги') {
+                                inTagsSection = true;
+                                continue;
+                            } else {
+                                // If we were in tags section and hit another header, stop processing tags
+                                if (inTagsSection) {
+                                    break;
+                                }
+                                inTagsSection = false;
+                                continue;
+                            }
+                        }
+
+                        // Process lines in tags section
+                        if (inTagsSection && line.length > 0) {
+                            // Parse tags (comma-separated) - same logic as MarkdownTestCaseParser
+                            const tags = line.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+                            tags.forEach(tag => tagsSet.add(tag));
+                        }
+                    }
+                } catch (error) {
+                    // Skip files that can't be read
+                    continue;
+                }
+            }
+        }
+    }
+
+    public static getTags(): string[] {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return [];
+        }
+
+        const workspaceRoot = workspaceFolders[0].uri.fsPath;
+        const configPath = path.join(workspaceRoot, 'config.json');
+
+        if (!fs.existsSync(configPath)) {
+            return [];
+        }
+
+        try {
+            const content = fs.readFileSync(configPath, 'utf8');
+            const config = JSON.parse(content);
+            return config.TAGS || [];
+        } catch (error) {
+            return [];
+        }
+    }
+
+    public static async addTag(tag: string): Promise<void> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return;
+        }
+
+        const workspaceRoot = workspaceFolders[0].uri.fsPath;
+        const configPath = path.join(workspaceRoot, 'config.json');
+
+        let config: any = {};
+        if (fs.existsSync(configPath)) {
+            try {
+                const content = fs.readFileSync(configPath, 'utf8');
+                config = JSON.parse(content);
+            } catch (error) {
+                // If config is invalid, create new one
+            }
+        }
+
+        if (!config.TAGS) {
+            config.TAGS = [];
+        }
+
+        // Add tag if it doesn't exist
+        if (!config.TAGS.includes(tag)) {
+            config.TAGS.push(tag);
+            config.TAGS.sort();
+        }
+
+        // Write config back
+        const configContent = JSON.stringify(config, null, 4);
+        fs.writeFileSync(configPath, configContent, 'utf8');
+    }
+
+    // Дефолтные причины пропуска (зашиты в коде, нельзя удалять)
+    private static readonly DEFAULT_SKIP_REASONS = [
+        'Функционал не реализован (test_first)',
+        'Принято решение не проверять.',
+        'Автотесты.',
+        'Нагрузочное тестирование.'
+    ];
+
+    public static getSkipReasons(): string[] {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return [...this.DEFAULT_SKIP_REASONS];
+        }
+
+        const workspaceRoot = workspaceFolders[0].uri.fsPath;
+        const configPath = path.join(workspaceRoot, 'config.json');
+
+        if (!fs.existsSync(configPath)) {
+            return [...this.DEFAULT_SKIP_REASONS];
+        }
+
+        try {
+            const content = fs.readFileSync(configPath, 'utf8');
+            const config = JSON.parse(content);
+            const customReasons = config.SKIP_REASON || [];
+            
+            // Объединяем дефолтные и пользовательские причины
+            // Дефолтные всегда идут первыми
+            const allReasons = [...this.DEFAULT_SKIP_REASONS];
+            
+            // Добавляем пользовательские причины, которых нет в дефолтных
+            customReasons.forEach((reason: string) => {
+                if (reason && !this.DEFAULT_SKIP_REASONS.includes(reason)) {
+                    allReasons.push(reason);
+                }
+            });
+            
+            return allReasons;
+        } catch (error) {
+            return [...this.DEFAULT_SKIP_REASONS];
+        }
+    }
+
+    public static async addSkipReason(reason: string): Promise<void> {
+        if (!reason || reason.trim() === '') {
+            return;
+        }
+
+        // Не добавляем дефолтные причины
+        if (this.DEFAULT_SKIP_REASONS.includes(reason)) {
+            return;
+        }
+
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            return;
+        }
+
+        const workspaceRoot = workspaceFolders[0].uri.fsPath;
+        const configPath = path.join(workspaceRoot, 'config.json');
+
+        let config: any = {};
+        if (fs.existsSync(configPath)) {
+            try {
+                const content = fs.readFileSync(configPath, 'utf8');
+                config = JSON.parse(content);
+            } catch (error) {
+                // If config is invalid, create new one
+            }
+        }
+
+        if (!config.SKIP_REASON) {
+            config.SKIP_REASON = [];
+        }
+
+        // Add reason if it doesn't exist
+        if (!config.SKIP_REASON.includes(reason)) {
+            config.SKIP_REASON.push(reason);
+            config.SKIP_REASON.sort();
+        }
+
+        // Write config back
+        const configContent = JSON.stringify(config, null, 4);
+        fs.writeFileSync(configPath, configContent, 'utf8');
     }
 
     private static _getHtmlForWebview(webview: vscode.Webview, configPath: string): string {
@@ -194,11 +505,24 @@ export class SettingsProvider {
         ` : ''}
     </div>
     
+    <div class="setting-item">
+        <div class="setting-label">Теги</div>
+        <div class="setting-description">
+            Синхронизировать теги из всех JSON и Markdown файлов в репозитории и сохранить их в config.json
+        </div>
+        <div class="setting-controls">
+            <button id="sync-tags-btn">Синхронизировать теги</button>
+        </div>
+        <div id="tags-sync-status" style="margin-top: 8px; font-size: 12px; color: var(--vscode-descriptionForeground); display: none;"></div>
+    </div>
+    
     <script>
         const vscode = acquireVsCodeApi();
         
         const selectBtn = document.getElementById('select-config-btn');
         const removeBtn = document.getElementById('remove-config-btn');
+        const syncTagsBtn = document.getElementById('sync-tags-btn');
+        const tagsSyncStatus = document.getElementById('tags-sync-status');
         
         if (selectBtn) {
             selectBtn.addEventListener('click', () => {
@@ -214,19 +538,28 @@ export class SettingsProvider {
         
         window.addEventListener('message', event => {
             const message = event.data;
-            if (message.command === 'configPathUpdated') {
-                const pathInput = document.getElementById('config-path');
-                if (pathInput) {
-                    pathInput.value = message.path || '';
-                }
-                // Reload page to show updated testers list
-                if (message.path) {
-                    setTimeout(() => location.reload(), 100);
-                } else {
-                    location.reload();
+            if (message.command === 'tagsSyncStatus') {
+                if (tagsSyncStatus) {
+                    tagsSyncStatus.style.display = 'block';
+                    if (message.status === 'progress') {
+                        tagsSyncStatus.textContent = message.message || 'Синхронизация...';
+                        tagsSyncStatus.style.color = 'var(--vscode-descriptionForeground)';
+                    } else if (message.status === 'success') {
+                        tagsSyncStatus.textContent = message.message || 'Синхронизация завершена';
+                        tagsSyncStatus.style.color = 'var(--vscode-textLink-foreground)';
+                    } else if (message.status === 'error') {
+                        tagsSyncStatus.textContent = message.message || 'Ошибка синхронизации';
+                        tagsSyncStatus.style.color = 'var(--vscode-errorForeground)';
+                    }
                 }
             }
         });
+        
+        if (syncTagsBtn) {
+            syncTagsBtn.addEventListener('click', () => {
+                vscode.postMessage({ command: 'synchronizeTags' });
+            });
+        }
     </script>
 </body>
 </html>`;

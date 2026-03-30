@@ -1,148 +1,67 @@
 # Руководство по разработке
 
-## Быстрый старт
+## Локальный запуск
 
-### Установка зависимостей
 ```bash
 npm install
-```
-
-### Компиляция
-```bash
 npm run compile
 ```
 
-### Режим разработки (watch mode)
+Для непрерывной компиляции:
+
 ```bash
 npm run watch
 ```
 
-### Запуск в режиме разработки
-1. Нажмите F5 в VSCode
-2. Откроется новое окно "Extension Development Host"
-3. В новом окне откройте JSON файл с тест-кейсом
-4. Откройте панель "Test Case Viewer" в Activity Bar
+Запуск расширения в dev-режиме:
 
-## Структура проекта
+1. Откройте проект в VS Code.
+2. Нажмите `F5` (Extension Development Host).
+3. В новом окне откройте markdown тест-кейс, например `example/example_md.md`.
+4. Откройте activity bar контейнер `Test Case Viewer`.
 
-```
-vscode_test_viewer/
-├── src/
-│   ├── extension.ts              # Точка входа, регистрация провайдеров
-│   ├── testCaseSidebarProvider.ts # Провайдер sidebar панели
-│   ├── testCaseRenderer.ts        # Рендеринг HTML
-│   ├── testCaseEditor.ts          # Legacy: Custom Editor (не используется)
-│   └── testCasePreview.ts         # Legacy: Webview Panel (не используется)
-├── out/                           # Скомпилированный JavaScript
-├── example/
-│   ├── example_test.json          # Пример тест-кейса
-│   └── sample_design.png          # Макет дизайна
-├── docs/                          # Документация
-├── package.json                   # Конфигурация расширения
-├── tsconfig.json                  # Настройки TypeScript
-└── README.md                      # Основная документация
+## Актуальная структура
+
+```text
+src/
+  extension.ts
+  markdownTestCaseSidebarProvider.ts
+  markdownTestCaseRenderer.ts
+  markdownTestCaseParser.ts
+  testCaseTreeViewProvider.ts
+  testCaseRunnerProvider.ts
+  testCaseStatisticsProvider.ts
 ```
 
-## Основные файлы
+## Основные сценарии разработки
 
-### `src/extension.ts`
-Регистрирует расширение и провайдеры. Минимальный код - только регистрация sidebar provider.
+### Изменение UI webview
 
-### `src/testCaseSidebarProvider.ts`
-Основная логика работы панели:
-- Создает и управляет webview
-- Отслеживает изменения активного редактора
-- Обновляет содержимое панели
-- Обрабатывает пустые состояния
+- HTML/CSS/JS: `src/markdownTestCaseRenderer.ts`
+- Взаимодействие с VS Code API и сохранение в файл: `src/markdownTestCaseSidebarProvider.ts`
 
-**Важные моменты:**
-- Использует `onDidChangeActiveTextEditor` для отслеживания переключения файлов
-- Использует `onDidChangeTextDocument` для отслеживания изменений
-- Проверяет наличие полей `id`, `name`, `steps` для определения тест-кейса
+### Изменение формата markdown
 
-### `src/testCaseRenderer.ts`
-Статический класс для генерации HTML:
-- Не имеет состояния
-- Все методы статические
-- Использует CSS переменные VSCode
-- Экранирует HTML для безопасности
+- Парсинг/сериализация: `src/markdownTestCaseParser.ts`
+- После изменений формата нужно проверять совместимость с существующими `.md` файлами.
+
+### Изменение дерева тест-кейсов
+
+- Провайдер дерева: `src/testCaseTreeViewProvider.ts`
+- Команды фильтрации/обновления/удаления регистрируются в `src/extension.ts`.
 
 ## Отладка
 
-### Логирование
-Добавьте логирование через `vscode.window.showInformationMessage()` или `console.log()` (видно в Developer Tools).
+- Логи расширения: `Help -> Toggle Developer Tools` и Output/Debug Console.
+- Логи webview: `Developer: Open Webview Developer Tools`.
+- Если webview не обновляется, сначала проверьте обработчики `onDidChangeActiveTextEditor` и `onDidChangeTextDocument`.
 
-### Developer Tools для Webview
-1. Откройте Command Palette (Ctrl+Shift+P)
-2. Выполните "Developer: Open Webview Developer Tools"
-3. Выберите webview панель
+## Базовый чек-лист перед PR
 
-### Типичные проблемы
-
-**Панель не обновляется:**
-- Проверьте, что `updateContent()` вызывается при изменении редактора
-- Убедитесь, что JSON валидный и содержит нужные поля
-
-**Стили не применяются:**
-- Проверьте использование CSS переменных VSCode (var(--vscode-...))
-- Убедитесь, что стили находятся в `<style>` теге внутри HTML
-
-**Панель не отображается:**
-- Проверьте конфигурацию в `package.json` (views, viewsContainers)
-- Убедитесь, что провайдер зарегистрирован в `extension.ts`
-
-## Тестирование
-
-### Ручное тестирование
-1. Откройте `example/example_test.json`
-2. Проверьте отображение всех полей
-3. Измените JSON и проверьте обновление
-4. Откройте другой JSON файл (не тест-кейс) - должно показать пустое состояние
-5. Закройте и откройте панель - должна сохранить состояние
-
-### Тестовые сценарии
-- [ ] Открытие тест-кейса отображает все данные
-- [ ] Изменение JSON обновляет панель
-- [ ] Переключение между файлами обновляет панель
-- [ ] Не-тест-кейс показывает пустое состояние
-- [ ] Невалидный JSON показывает ошибку
-- [ ] Панель работает в темной и светлой теме
-
-## Добавление новых функций
-
-### Добавление нового поля в отображение
-1. Убедитесь, что поле есть в интерфейсе `TestCase`
-2. Добавьте отображение в `TestCaseRenderer.render()`
-3. Добавьте стили при необходимости
-
-### Изменение парсинга описания
-1. Обновите `TestCaseRenderer.parseDescription()`
-2. Добавьте новый ключ в `ParsedDescription` интерфейс
-3. Обновите отображение в `render()`
-
-### Добавление новой секции
-1. Добавьте HTML разметку в `TestCaseRenderer.render()`
-2. Добавьте CSS стили
-3. Используйте существующие CSS переменные VSCode
-
-## Сборка для публикации
-
-```bash
-# Установка vsce (если еще не установлен)
-npm install -g vsce
-
-# Сборка расширения
-vsce package
-
-# Установка локально
-code --install-extension test-case-viewer-0.0.1.vsix
-```
-
-## Зависимости
-
-- `@types/vscode` - типы для VSCode API
-- `@types/node` - типы для Node.js
-- `typescript` - компилятор TypeScript
-
-Все зависимости только для разработки, расширение использует только VSCode API.
+- `npm run compile` проходит без ошибок.
+- Вручную проверены:
+  - открытие `.md` тест-кейса;
+  - редактирование в viewer и сохранение в файл;
+  - дерево тест-кейсов и фильтры;
+  - кнопки верхней панели (включая шторку).
 

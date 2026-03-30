@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { TestCaseRenderer } from './testCaseRenderer';
+import { SettingsProvider } from './settingsProvider';
 
 interface TestCase {
     id: string;
@@ -7,9 +8,6 @@ interface TestCase {
     description: string;
     preconditions: string;
     expectedResult: string;
-    epic: string;
-    feature: string;
-    story: string;
     component: string;
     testLayer: string;
     severity: string;
@@ -17,7 +15,6 @@ interface TestCase {
     environment: string;
     browser: string;
     owner: string;
-    author: string;
     reviewer: string;
     testCaseId: string;
     issueLinks: string;
@@ -112,6 +109,8 @@ export class TestCasePreviewProvider {
             return;
         }
 
-        panel.webview.html = TestCaseRenderer.render(testCase);
+        const testers = SettingsProvider.getTesters();
+        const tags = SettingsProvider.getTags();
+        panel.webview.html = TestCaseRenderer.render(testCase, undefined, testers, tags);
     }
 }

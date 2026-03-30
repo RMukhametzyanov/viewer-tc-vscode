@@ -1,0 +1,65 @@
+name: Build and Release on Tag
+
+on:
+  push:
+    tags:
+      - 'v*' # Запускается при создании тега вида v1.0.0, v0.1.0 и т.д.
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Compile TypeScript
+      run: npm run compile
+
+    - name: Install vsce
+      run: npm install -g @vscode/vsce
+
+    - name: Extract version from tag
+      id: tag_version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Package extension
+      run: |
+        vsce package \
+          --out test-case-viewer-${{ steps.tag_version.outputs.VERSION }}.vsix \
+          --baseContentUrl https://github.com/${{ github.repository }}/blob/${{ github.ref_name }} \
+          --baseImagesUrl https://github.com/${{ github.repository }}/raw/${{ github.ref_name }}
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: '*.vsix'
+        tag_name: ${{ github.ref }}
+        name: Release ${{ github.ref_name }}
+        body: |
+          ## Test Case Viewer ${{ steps.tag_version.outputs.VERSION }}
+          
+          ### Установка
+          
+          Скачайте файл `.vsix` и установите через VS Code:
+          - Откройте VS Code
+          - Перейдите в Extensions (Ctrl+Shift+X)
+          - Нажмите на три точки (...) → "Install from VSIX..."
+          - Выберите скачанный файл
+          
+          Или через командную строку:
+          ```bash
+          code --install-extension test-case-viewer-${{ steps.tag_version.outputs.VERSION }}.vsix
+          ```
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

@@ -10,10 +10,20 @@
     "Other"
   ],
   "activationEvents": [
-    "onLanguage:json"
+    "onLanguage:markdown"
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Test Case Viewer",
+      "properties": {
+        "testCaseViewer.showStatusColumn": {
+          "type": "boolean",
+          "default": true,
+          "description": "Показывать колонку статус в шагах тестирования"
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {
@@ -26,9 +36,14 @@
     "views": {
       "testCaseViewer": [
         {
-          "id": "testCaseViewer.sidebar",
+          "id": "markdownTestCaseViewer.sidebar",
           "name": "Test Case Viewer",
           "type": "webview"
+        },
+        {
+          "id": "testCaseViewer.tree",
+          "name": "Дерево объектов",
+          "when": "true"
         }
       ]
     },
@@ -41,13 +56,50 @@
       {
         "command": "testCaseViewer.createNewTestCase",
         "title": "Создать новый тест-кейс"
+      },
+      {
+        "command": "testCaseViewer.createStandaloneHtml",
+        "title": "Запустить прогон тестов",
+        "icon": "$(play)"
+      },
+      {
+        "command": "testCaseViewer.openTestCase",
+        "title": "Открыть тест-кейс"
+      },
+      {
+        "command": "testCaseViewer.refreshTree",
+        "title": "Обновить",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "testCaseViewer.showFilters",
+        "title": "Показать фильтры",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "testCaseViewer.clearFilters",
+        "title": "Сбросить фильтры",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "testCaseViewer.deleteTestCase",
+        "title": "Удалить"
+      },
+      {
+        "command": "testCaseViewer.createFolder",
+        "title": "Создать папку"
       }
     ],
     "menus": {
       "view/title": [
         {
           "command": "testCaseViewer.openSettings",
-          "when": "view == testCaseViewer.sidebar",
+          "when": "view == markdownTestCaseViewer.sidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "testCaseViewer.createStandaloneHtml",
+          "when": "view == markdownTestCaseViewer.sidebar",
           "group": "navigation"
         }
       ],
@@ -56,6 +108,50 @@
           "command": "testCaseViewer.createNewTestCase",
           "group": "file",
           "when": "explorerViewletVisible && filesExplorerFocus && !explorerResourceIsRoot && !explorerResourceReadonly"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "testCaseViewer.refreshTree",
+          "when": "view == testCaseViewer.tree",
+          "group": "navigation"
+        },
+        {
+          "command": "testCaseViewer.showFilters",
+          "when": "view == testCaseViewer.tree",
+          "group": "navigation"
+        },
+        {
+          "command": "testCaseViewer.clearFilters",
+          "when": "view == testCaseViewer.tree",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "testCaseViewer.createNewTestCase",
+          "when": "view == testCaseViewer.tree",
+          "group": "1_actions",
+          "title": "Создать тест-кейс"
+        },
+        {
+          "command": "testCaseViewer.createFolder",
+          "when": "view == testCaseViewer.tree",
+          "group": "1_actions",
+          "title": "Создать папку"
+        },
+        {
+          "command": "testCaseViewer.deleteTestCase",
+          "when": "view == testCaseViewer.tree",
+          "group": "2_delete",
+          "title": "Удалить"
+        }
+      ],
+      "keybindings": [
+        {
+          "command": "testCaseViewer.deleteTestCase",
+          "key": "Delete",
+          "when": "view == testCaseViewer.tree && viewItem == testCase || view == testCaseViewer.tree && viewItem == testCaseFolder"
         }
       ]
     }

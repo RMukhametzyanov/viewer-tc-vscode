@@ -2,116 +2,61 @@
 
 ## Обзор
 
-Test Case Viewer - это расширение для Visual Studio Code, которое предоставляет удобный просмотр тест-кейсов в формате JSON через отдельную панель в sidebar.
+Расширение визуализирует и редактирует тест-кейсы в формате Markdown через webview в боковой панели VS Code.
 
-## Основные компоненты
+## Ключевые компоненты
 
-### 1. Extension Entry Point (`src/extension.ts`)
+### `src/extension.ts`
+
 - Точка входа расширения
-- Регистрирует `TestCaseSidebarProvider` как WebviewView provider
-- Активируется при открытии JSON файлов
+- Регистрация провайдеров и команд
+- Активация на `onLanguage:markdown`
 
-### 2. Sidebar Provider (`src/testCaseSidebarProvider.ts`)
-- Реализует `vscode.WebviewViewProvider`
-- Управляет жизненным циклом sidebar панели
-- Отслеживает изменения активного редактора
-- Автоматически обновляет содержимое при:
-  - Переключении между файлами
-  - Изменении содержимого JSON файла
+### `src/markdownTestCaseSidebarProvider.ts`
 
-**Ключевые методы:**
-- `resolveWebviewView()` - создает и настраивает webview
-- `updateContent()` - обновляет содержимое панели на основе активного редактора
+- Реализует `vscode.WebviewViewProvider` для `markdownTestCaseViewer.sidebar`
+- Слушает:
+  - `onDidChangeActiveTextEditor`
+  - `onDidChangeTextDocument`
+  - `onDidChangeVisibility` webview
+- Читает активный `.md`, парсит его и обновляет HTML webview
+- Обрабатывает сообщения из webview (изменение полей, шагов, комментариев, вложений, запуск команд)
 
-### 3. Renderer (`src/testCaseRenderer.ts`)
-- Статический класс для рендеринга HTML
-- Парсит описание тест-кейса (извлекает проект, тест-план, тест-сьют)
-- Форматирует даты
-- Генерирует HTML с CSS стилями VSCode
+### `src/markdownTestCaseRenderer.ts`
 
-**Ключевые методы:**
-- `parseDescription()` - парсит строку описания на компоненты
-- `render()` - генерирует HTML для отображения тест-кейса
-- `renderSteps()` - генерирует HTML для шагов тестирования
-- `getErrorHtml()` - генерирует HTML для ошибок
+- Генерация HTML/CSS/JS интерфейса webview
+- Рендер секций тест-кейса (метаданные, шаги, теги, комментарии, вложения)
+- Верхняя панель действий со шторкой (expand/collapse)
+- Локальное состояние UI (например, `showStatusColumn`, состояние шторки)
 
-### 4. Legacy компоненты (не используются)
-- `src/testCaseEditor.ts` - Custom Editor (не используется в текущей версии)
-- `src/testCasePreview.ts` - Webview Panel provider (не используется в текущей версии)
+### `src/markdownTestCaseParser.ts`
+
+- Парсинг markdown-документа в структуру данных
+- Обратная сериализация структуры обратно в markdown
+
+### `src/testCaseTreeViewProvider.ts`
+
+- Построение дерева тест-кейсов из `*.md` workspace
+- Фильтрация, drag&drop перемещение, контекстные команды
 
 ## Поток данных
 
-```
-1. Пользователь открывает JSON файл с тест-кейсом
-   ↓
-2. VSCode активирует расширение (onLanguage:json)
-   ↓
-3. Extension регистрирует Sidebar Provider
-   ↓
-4. Sidebar Provider отслеживает активный редактор
-   ↓
-5. При изменении активного редактора:
-   - Проверяет, является ли файл тест-кейсом (id, name, steps)
-   - Парсит JSON
-   - Вызывает TestCaseRenderer.render()
-   - Обновляет HTML в webview
-```
+1. Пользователь открывает markdown-файл.
+2. Sidebar provider парсит содержимое через parser.
+3. Renderer строит webview HTML.
+4. Пользователь редактирует данные в webview.
+5. Webview отправляет message в provider.
+6. Provider обновляет markdown через parser+serialize и сохраняет файл.
+7. При сохранении/изменении UI синхронизируется повторным `updateContent()`.
 
-## Структура данных тест-кейса
+## Хранение состояния
 
-```typescript
-interface TestCase {
-    id: string;
-    name: string;
-    description: string;  // Многострочный текст с метаданными
-    status: string;
-    testType: string;
-    priority: string;
-    severity: string;
-    testLayer: string;
-    owner: string;
-    author: string;
-    reviewer: string;
-    steps: TestStep[];
-    // ... другие поля
-}
+- Часть состояния хранится в `globalState` расширения (например, collapse секций).
+- Часть состояния хранится в `localStorage` webview (видимость колонок, состояние шторки).
 
-interface TestStep {
-    id: string;
-    name: string;
-    description: string;
-    expectedResult: string;
-    status: string;
-    skipReason?: string;
-    // ... другие поля
-}
-```
+## Внешние точки интеграции
 
-## Парсинг описания
-
-Описание тест-кейса содержит структурированную информацию в формате:
-```
-Проект: <название> (ID: <id>)
-Тест-план: <название> (ID: <id>)
-Тест-сьют: <название> (ID: <id>)
-Приоритет: <значение>
-Статус автоматизации: <статус>
-Дата изменения статуса: <дата>
-```
-
-`TestCaseRenderer.parseDescription()` извлекает эти данные в объект `ParsedDescription`.
-
-## UI/UX
-
-- Панель находится в отдельном контейнере в Activity Bar
-- Использует CSS переменные VSCode для темизации
-- Автоматически адаптируется к темной/светлой теме
-- Поддерживает скроллинг для длинного контента
-- Показывает пустое состояние, когда нет открытого тест-кейса
-
-## Конфигурация (package.json)
-
-- **viewsContainers**: Создает новый контейнер в Activity Bar
-- **views**: Регистрирует webview панель в контейнере
-- **activationEvents**: Активируется при открытии JSON файлов
+- Команды VS Code (`vscode.commands.executeCommand`)
+- Файловая система workspace (`vscode.workspace.fs`, `fs`)
+- Опциональная генерация отчетов (HTML/Allure) через соответствующие провайдеры/команды
 
