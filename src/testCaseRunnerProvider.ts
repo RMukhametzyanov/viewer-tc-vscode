@@ -24,6 +24,7 @@ interface TestCase {
     tags: string;
     status: string;
     testType: string;
+    executionTimeMinutes: string;
     steps: TestStep[];
     createdAt?: number;
     updatedAt?: number;
@@ -295,7 +296,8 @@ export class TestCaseRunnerProvider {
                                 id: content.id || content.testCaseId || '',
                                 owner: content.owner || '',
                                 status: content.status || '',
-                                testType: content.testType || ''
+                                testType: content.testType || '',
+                                executionTimeMinutes: content.executionTimeMinutes || ''
                             },
                             links: content.issueLinks ? content.issueLinks.split('\n').filter((l: string) => l.trim()) : [],
                             attachedDocuments: [],
@@ -426,6 +428,7 @@ export class TestCaseRunnerProvider {
             tags: mdCase.tags?.join(', ') || '',
             status: mdCase.metadata.status || '',
             testType: mdCase.metadata.testType || '',
+            executionTimeMinutes: mdCase.metadata.executionTimeMinutes || '',
             steps: mdCase.steps.map((step, index) => ({
                 id: String(step.stepNumber || index + 1),
                 name: `Шаг ${step.stepNumber || index + 1}`,
@@ -671,6 +674,7 @@ export class TestCaseRunnerProvider {
                 const reviewer = node.data?.reviewer || '';
                 const testType = node.data?.testType || '';
                 const status = node.data?.status || '';
+                const executionTimeMinutes = node.data?.executionTimeMinutes || '';
                 const tags = node.data?.tags || '';
                 return `
                     <div class="tree-testcase ${isSelected ? 'selected' : ''}" 
@@ -680,6 +684,7 @@ export class TestCaseRunnerProvider {
                          data-reviewer="${this.escapeHtml(reviewer)}"
                          data-test-type="${this.escapeHtml(testType)}"
                          data-status="${this.escapeHtml(status)}"
+                         data-execution-time-minutes="${this.escapeHtml(executionTimeMinutes)}"
                          data-tags="${this.escapeHtml(tags)}">
                         <span class="tree-status-indicator ${statusClass}"></span>
                         <span class="tree-testcase-icon">📄</span>
@@ -1716,6 +1721,26 @@ export class TestCaseRunnerProvider {
             outline: 1px solid var(--accent-color);
             outline-offset: 1px;
             border-radius: 2px;
+        }
+
+        .viewer-meta-input {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 2px;
+            width: 90px;
+        }
+
+        .viewer-meta-input:focus {
+            outline: 1px solid var(--accent-color);
+            outline-offset: 1px;
+        }
+
+        .viewer-meta-input.required-field {
+            border-color: #dc3545;
+            box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.2);
         }
         
         .viewer-section-title {
@@ -3154,10 +3179,6 @@ export class TestCaseRunnerProvider {
                     \`<option value="\${escapeHtml(t)}" \${testCase.owner === t ? 'selected' : ''}>\${escapeHtml(t)}</option>\`
                 ).join('') : '';
                 
-                const reviewerOptions = testers && testers.length > 0 ? testers.map(t => 
-                    \`<option value="\${escapeHtml(t)}" \${testCase.reviewer === t ? 'selected' : ''}>\${escapeHtml(t)}</option>\`
-                ).join('') : '';
-                
                 let html = \`
                     <div>
                         <div class="viewer-header">
@@ -3199,7 +3220,7 @@ export class TestCaseRunnerProvider {
                                     </select>
                                 </div>
                                 <div class="viewer-meta-item">
-                                    <span class="viewer-meta-label">Владелец:</span>
+                                    <span class="viewer-meta-label">Исполнитель:</span>
                                     \${testers && testers.length > 0 ? \`
                                     <select 
                                         class="viewer-meta-select" 
@@ -3214,19 +3235,17 @@ export class TestCaseRunnerProvider {
                                     \`}
                                 </div>
                                 <div class="viewer-meta-item">
-                                    <span class="viewer-meta-label">Ревьювер:</span>
-                                    \${testers && testers.length > 0 ? \`
-                                    <select 
-                                        class="viewer-meta-select" 
-                                        id="test-case-reviewer" 
-                                        data-field="reviewer"
-                                    >
-                                        <option value="">-- Выберите --</option>
-                                        \${reviewerOptions}
-                                    </select>
-                                    \` : \`
-                                    <span>\${escapeHtml(testCase.reviewer || '')}</span>
-                                    \`}
+                                    <span class="viewer-meta-label">Время прохождения, мин:</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        class="viewer-meta-input"
+                                        id="test-case-execution-time"
+                                        data-field="executionTimeMinutes"
+                                        value="\${escapeHtml(testCase.executionTimeMinutes || '')}"
+                                        placeholder="Введите время"
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -3721,16 +3740,31 @@ export class TestCaseRunnerProvider {
                     });
                 }
                 
-                const reviewerSelect = document.getElementById('test-case-reviewer');
-                if (reviewerSelect) {
-                    reviewerSelect.addEventListener('change', function() {
-                        testCase.reviewer = this.value;
+                const executionTimeInput = document.getElementById('test-case-execution-time');
+                if (executionTimeInput) {
+                    const markRequiredState = () => {
+                        const isEmpty = !executionTimeInput.value || executionTimeInput.value.trim() === '';
+                        executionTimeInput.classList.toggle('required-field', isEmpty);
+                    };
+                    executionTimeInput.addEventListener('input', function() {
+                        testCase.executionTimeMinutes = this.value;
+                        markRequiredState();
                         if (currentFilePath) {
                             modifiedFiles.add(currentFilePath);
                             document.getElementById('save-selected-btn').disabled = false;
                             document.getElementById('save-all-btn').disabled = false;
                         }
                     });
+                    executionTimeInput.addEventListener('change', function() {
+                        testCase.executionTimeMinutes = this.value;
+                        markRequiredState();
+                        if (currentFilePath) {
+                            modifiedFiles.add(currentFilePath);
+                            document.getElementById('save-selected-btn').disabled = false;
+                            document.getElementById('save-all-btn').disabled = false;
+                        }
+                    });
+                    markRequiredState();
                 }
                 
                 // Обработчик изменения описания
@@ -3823,9 +3857,21 @@ export class TestCaseRunnerProvider {
                 }, 3000);
             }
             
-            // Функция валидации шагов с failed статусом
+            // Функция валидации обязательных полей и причин статусов шагов
             function validateFailedSteps(content) {
+                const errors = [];
+
+                if (!content.executionTimeMinutes || content.executionTimeMinutes.trim() === '') {
+                    errors.push('Поле "Время прохождения, мин" обязательно для заполнения.');
+                }
+
                 if (!content.steps || !Array.isArray(content.steps)) {
+                    if (errors.length > 0) {
+                        return {
+                            valid: false,
+                            message: errors.join('\\n')
+                        };
+                    }
                     return { valid: true, message: '' };
                 }
                 
@@ -3837,7 +3883,6 @@ export class TestCaseRunnerProvider {
                     step.status === 'skipped' && (!step.skipReason || step.skipReason.trim() === '')
                 );
                 
-                const errors = [];
                 if (failedStepsWithoutBugLink.length > 0) {
                     errors.push(\`Для шагов со статусом "Failed" необходимо указать причину. Найдено шагов без причины: \${failedStepsWithoutBugLink.length}\`);
                 }
