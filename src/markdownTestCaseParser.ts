@@ -11,6 +11,7 @@ export interface MarkdownTestCase {
         owner?: string;
         status?: string;
         testType?: string;
+        executionTimeMinutes?: string;
     };
     links?: string[];
     attachedDocuments?: string[];
@@ -155,6 +156,8 @@ export class MarkdownTestCaseParser {
                         result.metadata.status = value;
                     } else if (field === 'Тип теста') {
                         result.metadata.testType = value;
+                    } else if (field === 'Время прохождения, мин') {
+                        result.metadata.executionTimeMinutes = value;
                     }
                 }
             }
@@ -288,6 +291,7 @@ export class MarkdownTestCaseParser {
         lines.push(`| **Исполнитель** | ${testCase.metadata.owner || ''} |`);
         lines.push(`| **Статус** | ${testCase.metadata.status || ''} |`);
         lines.push(`| **Тип теста** | ${testCase.metadata.testType || ''} |`);
+        lines.push(`| **Время прохождения, мин** | ${testCase.metadata.executionTimeMinutes || ''} |`);
         lines.push('');
 
         // Связи

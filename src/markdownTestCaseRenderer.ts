@@ -167,6 +167,32 @@ export class MarkdownTestCaseRenderer {
             color: var(--vscode-dropdown-foreground) !important;
         }
 
+        .viewer-meta-input {
+            background: transparent;
+            border: 1px solid var(--vscode-input-border, transparent);
+            color: var(--vscode-foreground);
+            font-size: 13px;
+            padding: 1px 4px;
+            margin: 0;
+            width: 72px;
+            border-radius: 2px;
+        }
+
+        .viewer-meta-input:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: 1px;
+        }
+
+        .viewer-meta-input::-webkit-outer-spin-button,
+        .viewer-meta-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .viewer-meta-input[type=number] {
+            -moz-appearance: textfield;
+        }
+
         /* Подсветка статуса Done зелёным цветом */
         .viewer-meta-select.status-done {
             color: var(--vscode-inputValidation-infoForeground);
@@ -1866,6 +1892,18 @@ export class MarkdownTestCaseRenderer {
                 });
             });
 
+            document.querySelectorAll('.viewer-meta-input').forEach(input => {
+                input.addEventListener('blur', function() {
+                    const field = this.getAttribute('data-field');
+                    const value = this.value || '';
+                    vscode.postMessage({
+                        command: 'updateMetadata',
+                        field: field,
+                        value: value
+                    });
+                });
+            });
+
             // Handle step updates
             document.querySelectorAll('[data-step-field]').forEach(element => {
                 element.addEventListener('blur', function() {
@@ -3002,6 +3040,19 @@ export class MarkdownTestCaseRenderer {
                         ` : `
                         <span>${this.escapeHtml(testCase.metadata.owner || '')}</span>
                         `}
+                    </div>
+                    <div class="viewer-meta-item">
+                        <span class="viewer-meta-label">Время прохождения, мин:</span>
+                        <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            class="viewer-meta-input"
+                            id="test-case-execution-time"
+                            data-field="executionTimeMinutes"
+                            value="${this.escapeHtml(testCase.metadata.executionTimeMinutes || '')}"
+                            placeholder="0"
+                        />
                     </div>
                 </div>
                 <div class="viewer-tags-row">
