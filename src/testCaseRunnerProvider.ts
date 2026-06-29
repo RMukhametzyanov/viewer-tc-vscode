@@ -1091,55 +1091,52 @@ export class TestCaseRunnerProvider {
         }
         
         .status-btn-icon {
-            width: 24px;
-            height: 24px;
-            padding: 0;
+            min-width: 32px;
+            height: 22px;
+            padding: 2px 6px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             transition: all 0.2s;
             background-color: transparent;
-            display: flex;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            line-height: 1;
-        }
-        
-        .status-btn-icon svg {
-            width: 18px;
-            height: 18px;
-            display: block;
+            font-size: 10px;
+            font-weight: 600;
+            font-family: inherit;
+            line-height: 1.2;
         }
         
         .status-btn-icon:hover {
             opacity: 0.8;
-            transform: scale(1.1);
         }
         
-        /* Неактивное состояние - только цветной контур */
         .status-btn-icon.passed {
-            background-color: transparent;
+            color: #28a745;
         }
         
         .status-btn-icon.failed {
-            background-color: transparent;
+            color: #dc3545;
         }
         
         .status-btn-icon.skipped {
-            background-color: transparent;
+            color: #9e9e9e;
         }
         
-        /* Активное состояние - цветной фон с белым контуром иконки */
         .status-btn-icon.passed.active {
             background-color: #28a745;
+            color: #ffffff;
         }
         
         .status-btn-icon.failed.active {
             background-color: #dc3545;
+            color: #ffffff;
         }
         
         .status-btn-icon.skipped.active {
             background-color: #9e9e9e;
+            color: #ffffff;
         }
         
         .test-case-meta {
@@ -1641,19 +1638,136 @@ export class TestCaseRunnerProvider {
             border-color: var(--border-color);
         }
         
-        .step-expected-box {
-            border: 1px solid #4a9eff;
-            border-radius: 2px;
-            padding: 8px;
-            margin-top: 6px;
-            background-color: var(--bg-primary);
+        .runner-steps-table-wrapper {
+            width: 100%;
+            overflow: hidden;
         }
-        
-        .step-expected-label {
+
+        .runner-steps-grid {
+            display: grid;
+            grid-template-columns: 90px calc((100% - 90px) * var(--runner-action-ratio, 0.5)) calc((100% - 90px) * (1 - var(--runner-action-ratio, 0.5)));
+            width: 100%;
+            font-size: 11px;
+            border: 1px solid var(--border-color);
+            box-sizing: border-box;
+        }
+
+        .runner-steps-header {
+            padding: 8px 10px;
             font-weight: 600;
             font-size: 11px;
             color: var(--text-primary);
-            margin-bottom: 4px;
+            text-align: left;
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            box-sizing: border-box;
+        }
+
+        .runner-steps-header.runner-step-num-col {
+            text-align: center;
+        }
+
+        .runner-steps-header.runner-step-action-col {
+            position: relative;
+            overflow: visible;
+        }
+
+        .runner-steps-header.runner-step-expected-col {
+            border-right: none;
+        }
+
+        .runner-col-resizer {
+            position: absolute;
+            top: 0;
+            right: -6px;
+            width: 12px;
+            height: 100%;
+            cursor: col-resize;
+            z-index: 10;
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+        }
+
+        .runner-col-resizer::before {
+            content: '';
+            width: 2px;
+            height: 100%;
+            background-color: var(--border-color);
+            transition: background-color 0.15s, width 0.15s;
+        }
+
+        .runner-col-resizer:hover::before,
+        .runner-col-resizer.resizing::before {
+            width: 3px;
+            background-color: var(--accent-color);
+        }
+
+        .runner-step-num-cell,
+        .runner-step-action-cell,
+        .runner-step-expected-cell {
+            padding: 8px;
+            vertical-align: top;
+            border-bottom: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            background-color: var(--bg-secondary);
+            box-sizing: border-box;
+            min-width: 0;
+        }
+
+        .runner-step-expected-cell {
+            border-right: none;
+        }
+
+        .runner-step-num-cell.status-failed {
+            border-left: 2px solid #dc3545;
+        }
+
+        .runner-step-num-cell:not(.status-failed) {
+            border-left: 2px solid var(--accent-color);
+        }
+
+        .runner-step-num-cell {
+            text-align: center;
+            vertical-align: middle;
+            width: 90px;
+        }
+
+        .runner-step-num-cell .step-number-runner {
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        .runner-step-num-cell .status-buttons {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .runner-step-action-cell textarea,
+        .runner-step-expected-cell textarea {
+            width: 100%;
+            min-height: 45px;
+            padding: 6px;
+            border: 1px solid var(--border-color);
+            border-radius: 2px;
+            font-family: inherit;
+            font-size: 11px;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            resize: none;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .runner-step-reason-row {
+            grid-column: 1 / -1;
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: var(--bg-secondary);
+            box-sizing: border-box;
         }
         
         .viewer-header {
@@ -2559,6 +2673,111 @@ export class TestCaseRunnerProvider {
                 });
             }
             
+            // Изменение ширины столбцов таблицы шагов
+            const RUNNER_STEP_NUM_WIDTH = 90;
+            const RUNNER_STEP_MIN_RATIO = 0.15;
+            const RUNNER_STEP_MAX_RATIO = 0.85;
+            const RUNNER_STEPS_RATIO_STORAGE_KEY = 'testCaseRunnerStepsActionRatio';
+            const runnerStepsResizeState = {
+                active: false,
+                grid: null,
+                resizer: null,
+                startX: 0,
+                startRatio: 0.5,
+                contentWidth: 0
+            };
+
+            function clampRunnerActionRatio(ratio) {
+                return Math.max(RUNNER_STEP_MIN_RATIO, Math.min(RUNNER_STEP_MAX_RATIO, ratio));
+            }
+
+            function initRunnerStepsColumnWidths(grid) {
+                const saved = localStorage.getItem(RUNNER_STEPS_RATIO_STORAGE_KEY);
+                let ratio = saved ? parseFloat(saved) : 0.5;
+                if (isNaN(ratio)) {
+                    ratio = 0.5;
+                }
+                grid.style.setProperty('--runner-action-ratio', clampRunnerActionRatio(ratio));
+            }
+
+            function setupRunnerStepsColumnResizers() {
+                const grid = document.querySelector('.runner-steps-grid');
+                if (!grid) {
+                    return;
+                }
+
+                const bindResizer = () => {
+                    initRunnerStepsColumnWidths(grid);
+
+                    const resizer = grid.querySelector('.runner-col-resizer');
+                    if (!resizer) {
+                        return;
+                    }
+
+                    resizer.onmousedown = function(e) {
+                        const gridRect = grid.getBoundingClientRect();
+                        const contentWidth = gridRect.width - RUNNER_STEP_NUM_WIDTH;
+                        if (contentWidth <= 0) {
+                            return;
+                        }
+
+                        runnerStepsResizeState.active = true;
+                        runnerStepsResizeState.grid = grid;
+                        runnerStepsResizeState.resizer = resizer;
+                        runnerStepsResizeState.startX = e.clientX;
+                        runnerStepsResizeState.contentWidth = contentWidth;
+                        runnerStepsResizeState.startRatio = parseFloat(
+                            getComputedStyle(grid).getPropertyValue('--runner-action-ratio')
+                        ) || 0.5;
+
+                        resizer.classList.add('resizing');
+                        document.body.style.cursor = 'col-resize';
+                        document.body.style.userSelect = 'none';
+                        e.preventDefault();
+                    };
+                };
+
+                requestAnimationFrame(bindResizer);
+            }
+
+            document.addEventListener('mousemove', function(e) {
+                const state = runnerStepsResizeState;
+                if (!state.active || !state.grid || state.contentWidth <= 0) {
+                    return;
+                }
+
+                const diff = e.clientX - state.startX;
+                const ratio = clampRunnerActionRatio(state.startRatio + diff / state.contentWidth);
+                state.grid.style.setProperty('--runner-action-ratio', ratio);
+            });
+
+            document.addEventListener('mouseup', function() {
+                const state = runnerStepsResizeState;
+                if (!state.active) {
+                    return;
+                }
+
+                state.active = false;
+                if (state.resizer) {
+                    state.resizer.classList.remove('resizing');
+                }
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+
+                if (state.grid) {
+                    const ratio = parseFloat(
+                        getComputedStyle(state.grid).getPropertyValue('--runner-action-ratio')
+                    );
+                    if (!isNaN(ratio)) {
+                        localStorage.setItem(RUNNER_STEPS_RATIO_STORAGE_KEY, String(ratio));
+                    }
+                }
+
+                state.grid = null;
+                state.resizer = null;
+                state.contentWidth = 0;
+            });
+
             // Изменение ширины боковой панели
             const treePanel = document.getElementById('test-case-tree');
             const resizer = document.getElementById('tree-resizer');
@@ -3275,88 +3494,79 @@ export class TestCaseRunnerProvider {
                         }
                     });
                     
-                    // Функция для генерации SVG иконки
-                    function getStatusIcon(type, isActive) {
-                        // Для неактивных иконок: fill="none", stroke цветной (зеленый/красный/серый) - только контур
-                        // Для активных иконок: fill="none", stroke белый - белый контур на цветном фоне кнопки
-                        const fillColor = 'none';
-                        let strokeColor;
-                        if (isActive) {
-                            strokeColor = '#ffffff'; // Белый контур для активных
-                        } else {
-                            // Цветной контур для неактивных
-                            strokeColor = type === 'passed' ? '#28a745' : type === 'failed' ? '#dc3545' : '#9e9e9e';
-                        }
-                        const strokeWidth = '2';
-                        
-                        if (type === 'passed') {
-                            return \`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="\${fillColor}" stroke="\${strokeColor}" stroke-width="\${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>\`;
-                        } else if (type === 'failed') {
-                            return \`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="\${fillColor}" stroke="\${strokeColor}" stroke-width="\${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>\`;
-                        } else if (type === 'skipped') {
-                            return \`<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="\${fillColor}" stroke="\${strokeColor}" stroke-width="\${strokeWidth}" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>\`;
-                        }
-                        return '';
-                    }
-                    
-                    stepsDiv.innerHTML = testCase.steps.map((step, index) => {
+                    const stepRows = testCase.steps.map((step, index) => {
                         const status = step.status || 'pending';
-                        const borderColor = status === 'failed' ? '#dc3545' : 'var(--accent-color)';
-                        return \`
-                        <div style="margin-bottom: 10px; padding: 8px; background-color: var(--bg-secondary); border-radius: 3px; border-left: 2px solid \${borderColor};">
-                            <div class="step-header-runner">
-                                <div class="step-number-runner" style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                                    <span>ШАГ \${index + 1}</span>
-                                    <div class="status-buttons" style="display: flex; gap: 4px; align-items: center;">
-                                        <button class="status-btn-icon passed \${status === 'passed' ? 'active' : ''}" data-step-id="\${step.id}" data-status="passed" title="Passed">\${getStatusIcon('passed', status === 'passed')}</button>
-                                        <button class="status-btn-icon failed \${status === 'failed' ? 'active' : ''}" data-step-id="\${step.id}" data-status="failed" title="Failed">\${getStatusIcon('failed', status === 'failed')}</button>
-                                        <button class="status-btn-icon skipped \${status === 'skipped' ? 'active' : ''}" data-step-id="\${step.id}" data-status="skipped" title="Skipped">\${getStatusIcon('skipped', status === 'skipped')}</button>
-                                    </div>
+                        const statusClass = status === 'failed' ? 'status-failed' : status === 'passed' ? 'status-passed' : status === 'skipped' ? 'status-skipped' : 'status-pending';
+                        const reasonRow = status === 'failed' ? \`
+                            <div class="runner-step-reason-row" data-step-id="\${step.id}">
+                                <div class="step-reason-editable">
+                                    Причина провала: <input type="text" class="step-buglink required-field" data-step-id="\${step.id}" value="\${escapeHtml(step.bugLink || '')}" placeholder="Укажите причину неудачного выполнения шага" required style="width: calc(100% - 120px); padding: 4px 6px; font-size: 11px; font-family: inherit; font-style: italic; margin-left: 4px; color: var(--text-primary);" />
                                 </div>
                             </div>
-                            <textarea 
-                                class="step-description auto-resize" 
-                                data-step-id="\${step.id}" 
-                                style="width: 100%; min-height: 45px; padding: 6px; border: 1px solid var(--border-color); border-radius: 2px; font-family: inherit; font-size: 11px; margin-bottom: 8px; background-color: var(--bg-primary); color: var(--text-primary); resize: none; overflow: hidden;"
+                        \` : status === 'skipped' ? \`
+                            <div class="runner-step-reason-row" data-step-id="\${step.id}">
+                                <div class="step-reason-editable">
+                                    Причина пропуска:
+                                    <input
+                                        type="text"
+                                        class="step-skip-reason-input required-field"
+                                        data-step-id="\${step.id}"
+                                        list="skip-reasons-\${step.id}"
+                                        value="\${escapeHtml(step.skipReason || '')}"
+                                        placeholder="Выберите причину или введите свою"
+                                        required
+                                        style="width: calc(100% - 120px); padding: 4px 6px; font-size: 11px; font-family: inherit; font-style: italic; margin-left: 4px; color: var(--text-primary);"
+                                    />
+                                    <datalist id="skip-reasons-\${step.id}">
+                                        \${skipReasons.map(reason => \`
+                                            <option value="\${escapeHtml(reason)}">\${escapeHtml(reason)}</option>
+                                        \`).join('')}
+                                    </datalist>
+                                </div>
+                            </div>
+                        \` : '';
+                        return \`
+                        <div class="runner-step-num-cell \${statusClass}" data-step-id="\${step.id}">
+                            <span class="step-number-runner">ШАГ \${index + 1}</span>
+                            <div class="status-buttons">
+                                <button type="button" class="status-btn-icon passed \${status === 'passed' ? 'active' : ''}" data-step-id="\${step.id}" data-status="passed" title="Passed">pass</button>
+                                <button type="button" class="status-btn-icon failed \${status === 'failed' ? 'active' : ''}" data-step-id="\${step.id}" data-status="failed" title="Failed">fail</button>
+                                <button type="button" class="status-btn-icon skipped \${status === 'skipped' ? 'active' : ''}" data-step-id="\${step.id}" data-status="skipped" title="Skipped">skip</button>
+                            </div>
+                        </div>
+                        <div class="runner-step-action-cell" data-step-id="\${step.id}">
+                            <textarea
+                                class="step-description auto-resize"
+                                data-step-id="\${step.id}"
                                 placeholder="Описание шага"
                             >\${escapeHtml(step.description || '')}</textarea>
-                            <div class="step-expected-box">
-                                <div class="step-expected-label">ОЖИДАЕМЫЙ РЕЗУЛЬТАТ:</div>
-                                <textarea 
-                                    class="step-expected auto-resize" 
-                                    data-step-id="\${step.id}" 
-                                    style="width: 100%; min-height: 45px; padding: 6px; border: none; border-radius: 0; font-family: inherit; font-size: 11px; background-color: transparent; color: var(--text-primary); resize: none; overflow: hidden;"
-                                    placeholder="Ожидаемый результат"
-                                >\${escapeHtml(step.expectedResult || '')}</textarea>
-                            </div>
-                            \${status === 'failed' ? \`
-                            <div class="step-reason-editable">
-                                Причина провала: <input type="text" class="step-buglink required-field" data-step-id="\${step.id}" value="\${escapeHtml(step.bugLink || '')}" placeholder="Укажите причину неудачного выполнения шага" required style="width: calc(100% - 120px); padding: 4px 6px; font-size: 11px; font-family: inherit; font-style: italic; margin-left: 4px; color: var(--text-primary);" />
-                            </div>
-                            \` : ''}
-                            \${status === 'skipped' ? \`
-                            <div class="step-reason-editable">
-                                Причина пропуска: 
-                                <input 
-                                    type="text" 
-                                    class="step-skip-reason-input required-field" 
-                                    data-step-id="\${step.id}" 
-                                    list="skip-reasons-\${step.id}"
-                                    value="\${escapeHtml(step.skipReason || '')}" 
-                                    placeholder="Выберите причину или введите свою" 
-                                    required
-                                    style="width: calc(100% - 120px); padding: 4px 6px; font-size: 11px; font-family: inherit; font-style: italic; margin-left: 4px; color: var(--text-primary);" 
-                                />
-                                <datalist id="skip-reasons-\${step.id}">
-                                    \${skipReasons.map(reason => \`
-                                        <option value="\${escapeHtml(reason)}">\${escapeHtml(reason)}</option>
-                                    \`).join('')}
-                                </datalist>
-                            </div>
-                            \` : ''}
                         </div>
+                        <div class="runner-step-expected-cell" data-step-id="\${step.id}">
+                            <textarea
+                                class="step-expected auto-resize"
+                                data-step-id="\${step.id}"
+                                placeholder="Ожидаемый результат"
+                            >\${escapeHtml(step.expectedResult || '')}</textarea>
+                        </div>
+                        \${reasonRow}
                     \`;
                     }).join('');
+
+                    stepsDiv.innerHTML = \`
+                        <div class="runner-steps-table-wrapper">
+                            <div class="runner-steps-grid">
+                                <div class="runner-steps-header runner-step-num-col">Шаг</div>
+                                <div class="runner-steps-header runner-step-action-col">
+                                    Действие
+                                    <div class="runner-col-resizer" title="Перетащите, чтобы изменить ширину столбцов"></div>
+                                </div>
+                                <div class="runner-steps-header runner-step-expected-col">Ожидаемый результат</div>
+                                \${stepRows}
+                            </div>
+                        </div>
+                    \`;
+
+                    setupRunnerStepsColumnResizers();
                     
                     // Функция для автоматического изменения высоты textarea
                     function autoResizeTextarea(textarea) {
@@ -3410,177 +3620,137 @@ export class TestCaseRunnerProvider {
                                 const stepButtons = document.querySelectorAll(\`.status-btn-icon[data-step-id="\${stepId}"]\`);
                                 stepButtons.forEach(b => {
                                     b.classList.remove('active');
-                                    const buttonStatus = b.getAttribute('data-status');
-                                    const isActive = buttonStatus === newStatus;
-                                    // Обновляем SVG иконку
-                                    b.innerHTML = getStatusIcon(buttonStatus, isActive);
-                                    if (isActive) {
+                                    if (b.getAttribute('data-status') === newStatus) {
                                         b.classList.add('active');
                                     }
                                 });
                                 
-                                // Находим карточку шага
-                                const stepCard = this.closest('div[style*="margin-bottom: 10px"]');
-                                if (stepCard) {
-                                    // Обновляем цвет левой полоски в зависимости от статуса
-                                    const borderColor = newStatus === 'failed' ? '#dc3545' : 'var(--accent-color)';
-                                    stepCard.style.borderLeft = \`2px solid \${borderColor}\`;
-                                    // Находим оба контейнера (для failed и skipped)
-                                    const allReasonContainers = stepCard.querySelectorAll('.step-reason-editable');
-                                    let bugLinkContainer = null;
-                                    let skipReasonContainer = null;
-                                    
-                                    allReasonContainers.forEach(container => {
-                                        if (container.querySelector('.step-buglink')) {
-                                            bugLinkContainer = container;
+                                // Находим ячейку шага в таблице
+                                const stepNumCell = this.closest('.runner-step-num-cell');
+                                if (stepNumCell) {
+                                    stepNumCell.classList.remove('status-failed', 'status-passed', 'status-skipped', 'status-pending');
+                                    stepNumCell.classList.add('status-' + newStatus);
+
+                                    let reasonRow = document.querySelector(\`.runner-step-reason-row[data-step-id="\${stepId}"]\`);
+                                    let bugLinkContainer = reasonRow ? reasonRow.querySelector('.step-buglink')?.closest('.step-reason-editable') || null : null;
+                                    let skipReasonContainer = reasonRow ? reasonRow.querySelector('.step-skip-reason-input')?.closest('.step-reason-editable') || null : null;
+
+                                    function ensureReasonRow() {
+                                        if (!reasonRow) {
+                                            reasonRow = document.createElement('div');
+                                            reasonRow.className = 'runner-step-reason-row';
+                                            reasonRow.setAttribute('data-step-id', stepId);
+                                            const expectedCell = document.querySelector(\`.runner-step-expected-cell[data-step-id="\${stepId}"]\`);
+                                            if (expectedCell && expectedCell.parentNode) {
+                                                expectedCell.parentNode.insertBefore(reasonRow, expectedCell.nextSibling);
+                                            }
                                         }
-                                        if (container.querySelector('.step-skip-reason-input')) {
-                                            skipReasonContainer = container;
-                                        }
-                                    });
-                                    
+                                        reasonRow.style.display = '';
+                                        return reasonRow;
+                                    }
+
                                     if (newStatus === 'failed') {
-                                        // Очищаем skipReason при переключении на failed
                                         step.skipReason = '';
-                                        
-                                        // Скрываем контейнер причины пропуска
-                                        if (skipReasonContainer) {
-                                            skipReasonContainer.style.display = 'none';
-                                        }
-                                        
-                                        // Сохраняем оригинальное значение bugLink из файла (если есть)
+
                                         const originalBugLink = step.bugLink || '';
-                                        
-                                        // Показываем поле причины провала
+                                        const reasonContainer = ensureReasonRow();
+
                                         if (!bugLinkContainer) {
-                                            // Создаем контейнер для причины провала
-                                            const expectedBox = stepCard.querySelector('.step-expected-box');
-                                            if (expectedBox) {
-                                                bugLinkContainer = document.createElement('div');
-                                                bugLinkContainer.className = 'step-reason-editable';
-                                                bugLinkContainer.innerHTML = \`
+                                            reasonContainer.innerHTML = \`
+                                                <div class="step-reason-editable">
                                                     Причина провала: <input type="text" class="step-buglink required-field" data-step-id="\${stepId}" value="\${escapeHtml(originalBugLink)}" placeholder="Укажите причину неудачного выполнения шага" required style="width: calc(100% - 120px); padding: 4px 6px; font-size: 11px; font-family: inherit; font-style: italic; margin-left: 4px; color: var(--text-primary);" />
-                                                \`;
-                                                expectedBox.parentNode.insertBefore(bugLinkContainer, expectedBox.nextSibling);
-                                                
-                                                // Добавляем обработчик для нового поля
-                                                const newBugLinkInput = bugLinkContainer.querySelector('.step-buglink');
-                                                if (newBugLinkInput) {
-                                                    newBugLinkInput.addEventListener('change', function() {
-                                                        step.bugLink = this.value;
-                                                        if (currentFilePath) {
-                                                            modifiedFiles.add(currentFilePath);
-                                                            document.getElementById('save-selected-btn').disabled = false;
-                                                            document.getElementById('save-all-btn').disabled = false;
-                                                        }
-                                                    });
-                                                    
-                                                    // Устанавливаем фокус только если поле пустое
-                                                    if (!originalBugLink) {
-                                                        setTimeout(() => {
-                                                            newBugLinkInput.focus();
-                                                        }, 100);
+                                                </div>
+                                            \`;
+                                            bugLinkContainer = reasonContainer.querySelector('.step-reason-editable');
+
+                                            const newBugLinkInput = bugLinkContainer.querySelector('.step-buglink');
+                                            if (newBugLinkInput) {
+                                                newBugLinkInput.addEventListener('change', function() {
+                                                    step.bugLink = this.value;
+                                                    if (currentFilePath) {
+                                                        modifiedFiles.add(currentFilePath);
+                                                        document.getElementById('save-selected-btn').disabled = false;
+                                                        document.getElementById('save-all-btn').disabled = false;
                                                     }
+                                                });
+
+                                                if (!originalBugLink) {
+                                                    setTimeout(() => newBugLinkInput.focus(), 100);
                                                 }
                                             }
                                         } else {
-                                            // Поле уже существует - используем значение из step, не очищаем
                                             bugLinkContainer.style.display = 'block';
+                                            if (skipReasonContainer) {
+                                                skipReasonContainer.style.display = 'none';
+                                            }
                                             const bugInput = bugLinkContainer.querySelector('.step-buglink');
                                             if (bugInput) {
-                                                // Синхронизируем значение из step с полем ввода
                                                 bugInput.value = originalBugLink || '';
-                                                // Устанавливаем фокус только если поле пустое
                                                 if (!originalBugLink) {
-                                                    setTimeout(() => {
-                                                        bugInput.focus();
-                                                    }, 100);
+                                                    setTimeout(() => bugInput.focus(), 100);
                                                 }
                                             }
                                         }
-                                        // Сохраняем значение bugLink (не очищаем, если оно было)
+
                                         if (!step.bugLink && originalBugLink) {
                                             step.bugLink = originalBugLink;
                                         }
                                     } else if (newStatus === 'skipped') {
-                                        // Очищаем bugLink при переключении на skipped
                                         step.bugLink = '';
-                                        
-                                        // Скрываем контейнер причины провала
-                                        if (bugLinkContainer) {
-                                            bugLinkContainer.style.display = 'none';
-                                        }
-                                        
-                                        // Сохраняем оригинальное значение skipReason из файла (если есть)
+
                                         const originalSkipReason = step.skipReason || '';
-                                        
-                                        // Показываем поле причины пропуска
+                                        const reasonContainer = ensureReasonRow();
+
                                         if (!skipReasonContainer) {
-                                            // Создаем контейнер для причины пропуска
-                                            const expectedBox = stepCard.querySelector('.step-expected-box');
-                                            if (expectedBox) {
-                                                skipReasonContainer = document.createElement('div');
-                                                skipReasonContainer.className = 'step-reason-editable';
-                                                const datalistId = 'skip-reasons-' + stepId;
-                                                skipReasonContainer.innerHTML = \`
-                                                    Причина пропуска: 
-                                                    <input 
-                                                        type="text" 
-                                                        class="step-skip-reason-input required-field" 
-                                                        data-step-id="\${stepId}" 
+                                            const datalistId = 'skip-reasons-' + stepId;
+                                            reasonContainer.innerHTML = \`
+                                                <div class="step-reason-editable">
+                                                    Причина пропуска:
+                                                    <input
+                                                        type="text"
+                                                        class="step-skip-reason-input required-field"
+                                                        data-step-id="\${stepId}"
                                                         list="\${datalistId}"
-                                                        value="\${escapeHtml(originalSkipReason)}" 
-                                                        placeholder="Выберите причину или введите свою" 
+                                                        value="\${escapeHtml(originalSkipReason)}"
+                                                        placeholder="Выберите причину или введите свою"
                                                         required
-                                                        style="width: calc(100% - 120px); padding: 4px 6px; font-size: 11px; font-family: inherit; font-style: italic; margin-left: 4px; color: var(--text-primary);" 
+                                                        style="width: calc(100% - 120px); padding: 4px 6px; font-size: 11px; font-family: inherit; font-style: italic; margin-left: 4px; color: var(--text-primary);"
                                                     />
                                                     <datalist id="\${datalistId}">
                                                         \${skipReasons.map(reason => \`
                                                             <option value="\${escapeHtml(reason)}">\${escapeHtml(reason)}</option>
                                                         \`).join('')}
                                                     </datalist>
-                                                \`;
-                                                expectedBox.parentNode.insertBefore(skipReasonContainer, expectedBox.nextSibling);
-                                                
-                                                // Добавляем обработчики для нового поля
-                                                setupSkipReasonHandlers(skipReasonContainer, stepId);
-                                                
-                                                // Устанавливаем фокус только если поле пустое
-                                                const newSkipInput = skipReasonContainer.querySelector('.step-skip-reason-input');
-                                                if (newSkipInput && !originalSkipReason) {
-                                                    setTimeout(() => {
-                                                        newSkipInput.focus();
-                                                    }, 100);
-                                                }
+                                                </div>
+                                            \`;
+                                            skipReasonContainer = reasonContainer.querySelector('.step-reason-editable');
+                                            setupSkipReasonHandlers(skipReasonContainer, stepId);
+
+                                            const newSkipInput = skipReasonContainer.querySelector('.step-skip-reason-input');
+                                            if (newSkipInput && !originalSkipReason) {
+                                                setTimeout(() => newSkipInput.focus(), 100);
                                             }
                                         } else {
-                                            // Поле уже существует - используем значение из step, не очищаем
                                             skipReasonContainer.style.display = 'block';
+                                            if (bugLinkContainer) {
+                                                bugLinkContainer.style.display = 'none';
+                                            }
                                             const skipInput = skipReasonContainer.querySelector('.step-skip-reason-input');
                                             if (skipInput) {
-                                                // Синхронизируем значение из step с полем ввода
                                                 skipInput.value = originalSkipReason || '';
-                                                // Устанавливаем фокус только если поле пустое
                                                 if (!originalSkipReason) {
-                                                    setTimeout(() => {
-                                                        skipInput.focus();
-                                                    }, 100);
+                                                    setTimeout(() => skipInput.focus(), 100);
                                                 }
                                             }
                                         }
-                                        // Сохраняем значение skipReason (не очищаем, если оно было)
+
                                         if (!step.skipReason && originalSkipReason) {
                                             step.skipReason = originalSkipReason;
                                         }
                                     } else {
-                                        // Скрываем оба поля при выборе другого статуса
-                                        if (bugLinkContainer) {
-                                            bugLinkContainer.style.display = 'none';
+                                        if (reasonRow) {
+                                            reasonRow.style.display = 'none';
                                         }
-                                        if (skipReasonContainer) {
-                                            skipReasonContainer.style.display = 'none';
-                                        }
-                                        // Очищаем оба поля
                                         step.bugLink = '';
                                         step.skipReason = '';
                                     }
